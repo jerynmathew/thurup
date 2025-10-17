@@ -220,11 +220,15 @@ class SessionPersistence:
             "leader": session.leader,
             "turn": session.turn,
             "current_trick": [
-                [seat, self._card_to_dict(card)] for seat, card in session.current_trick
+                [seat, self._card_to_dict(card)] for seat, card in session.trick_manager.current_trick
             ],
+            "last_trick": (
+                [session.trick_manager.last_trick[0], [[s, self._card_to_dict(c)] for s, c in session.trick_manager.last_trick[1]]]
+                if session.trick_manager.last_trick else None
+            ),
             "captured_tricks": [
                 [winner, [[s, self._card_to_dict(c)] for s, c in trick]]
-                for winner, trick in session.captured_tricks
+                for winner, trick in session.trick_manager.captured_tricks
             ],
             "points_by_seat": session.points_by_seat,
         }
@@ -266,13 +270,21 @@ class SessionPersistence:
         # Restore play
         session.leader = data["leader"]
         session.turn = data["turn"]
-        session.current_trick = [
+
+        # Restore trick state using TrickManager
+        current_trick = [
             (seat, self._dict_to_card(card)) for seat, card in data["current_trick"]
         ]
-        session.captured_tricks = [
+        last_trick = None
+        if data.get("last_trick"):
+            winner, trick_data = data["last_trick"]
+            last_trick = (winner, [(s, self._dict_to_card(c)) for s, c in trick_data])
+        captured_tricks = [
             (winner, [(s, self._dict_to_card(c)) for s, c in trick])
             for winner, trick in data["captured_tricks"]
         ]
+        session.trick_manager.restore_from_state(current_trick, last_trick, captured_tricks)
+
         session.points_by_seat = {int(k): v for k, v in data["points_by_seat"].items()}
 
         return session

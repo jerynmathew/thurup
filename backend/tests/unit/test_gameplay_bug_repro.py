@@ -68,17 +68,17 @@ async def test_user_reported_gameplay_bug():
     from app.models import PlayCardCmd
     result = await session.play_card(seat=0, cmd=PlayCardCmd(card_id="J♠#1"))
     print(f"Seat 0 (User) plays J♠: {result}")
-    print(f"Current trick: {[(s, f'{c.rank}{c.suit}') for s, c in session.current_trick]}")
+    print(f"Current trick: {[(s, f'{c.rank}{c.suit}') for s, c in session.trick_manager.current_trick]}")
 
     # Bot 1 (seat 1) plays King of Hearts
     result = await session.play_card(seat=1, cmd=PlayCardCmd(card_id="K♥#1"))
     print(f"Seat 1 (Bot 1) plays K♥: {result}")
-    print(f"Current trick: {[(s, f'{c.rank}{c.suit}') for s, c in session.current_trick]}")
+    print(f"Current trick: {[(s, f'{c.rank}{c.suit}') for s, c in session.trick_manager.current_trick]}")
 
     # Bot 2 (seat 2) plays 9 of Spades (User's teammate)
     result = await session.play_card(seat=2, cmd=PlayCardCmd(card_id="9♠#1"))
     print(f"Seat 2 (Bot 2) plays 9♠: {result}")
-    print(f"Current trick: {[(s, f'{c.rank}{c.suit}') for s, c in session.current_trick]}")
+    print(f"Current trick: {[(s, f'{c.rank}{c.suit}') for s, c in session.trick_manager.current_trick]}")
 
     # Bot 3 (seat 3) plays 8 of Spades (must follow suit)
     result = await session.play_card(seat=3, cmd=PlayCardCmd(card_id="8♠#1"))
@@ -86,8 +86,8 @@ async def test_user_reported_gameplay_bug():
 
     # Check the completed trick
     print("\n=== Trick Result ===")
-    if session.last_trick:
-        winner, trick_cards = session.last_trick
+    if session.trick_manager.last_trick:
+        winner, trick_cards = session.trick_manager.last_trick
         print(f"Winner: Seat {winner}")
         print(f"Trick cards: {[(s, f'{c.rank}{c.suit}') for s, c in trick_cards]}")
 
@@ -155,7 +155,7 @@ async def test_trump_ranking_all_combinations():
     print("\n=== Testing Trump Card Rankings ===")
     for rank1, rank2, expected_winner_rank in trump_battles:
         # Reset game state for each test
-        session.current_trick = []
+        session.trick_manager.current_trick = []
         session.current_turn = 0
 
         # Create cards with unique UIDs for each iteration
@@ -180,8 +180,8 @@ async def test_trump_ranking_all_combinations():
         await session.play_card(seat=3, cmd=PlayCardCmd(card_id=card4.uid))
 
         # Check winner immediately after trick completion
-        if session.last_trick:
-            winner, _ = session.last_trick
+        if session.trick_manager.last_trick:
+            winner, _ = session.trick_manager.last_trick
             winner_card = card1 if winner == 0 else card2
 
             print(f"{rank1}♠ vs {rank2}♠ → Winner: {winner_card.rank}♠ (expected: {expected_winner_rank}♠)")
@@ -230,7 +230,7 @@ async def test_lead_suit_ranking_all_same():
     print("\n=== Testing Lead Suit Card Rankings (Hearts lead, Trump is Spades) ===")
     for rank1, rank2, expected_winner_rank in lead_suit_battles:
         # Reset game state
-        session.current_trick = []
+        session.trick_manager.current_trick = []
         session.current_turn = 0
 
         # Create lead suit cards (hearts) with unique UIDs
@@ -255,8 +255,8 @@ async def test_lead_suit_ranking_all_same():
         await session.play_card(seat=3, cmd=PlayCardCmd(card_id=card4.uid))
 
         # Check winner immediately after trick completion
-        if session.last_trick:
-            winner, _ = session.last_trick
+        if session.trick_manager.last_trick:
+            winner, _ = session.trick_manager.last_trick
             winner_card = card1 if winner == 0 else card2
 
             print(f"{rank1}♥ vs {rank2}♥ → Winner: {winner_card.rank}♥ (expected: {expected_winner_rank}♥)")

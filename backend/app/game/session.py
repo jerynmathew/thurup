@@ -10,12 +10,12 @@ from app.game.enums import HiddenTrumpMode, SessionState
 from app.game.rules import (
     Card,
     deal,
-    determine_trick_winner,
     make_deck,
     shuffle_deck,
     trick_points,
 )
 from app.game.hidden_trump import HiddenTrumpManager
+from app.game.trick_manager import TrickManager
 from app.logging_config import get_logger
 from app.models import BidCmd, ChooseTrumpCmd, GameStateDTO, PlayCardCmd, PlayerInfo
 
@@ -62,11 +62,7 @@ class GameSession:
         self.current_dealer: int = 0  # tracks dealer position, rotates clockwise
         self.leader: int = 0  # seat index of player to dealer's left (first to bid/play)
         self.turn: int = 0
-        self.current_trick: List[Tuple[int, Card]] = []
-        self.last_trick: Optional[Tuple[int, List[Tuple[int, Card]]]] = None  # (winner_seat, trick)
-        self.captured_tricks: List[Tuple[int, List[Tuple[int, Card]]]] = (
-            []
-        )  # (winner_seat, trick)
+        self.trick_manager = TrickManager()
 
         # per-seat points captured (for convenience)
         self.points_by_seat: Dict[int, int] = {i: 0 for i in range(seats)}
@@ -104,24 +100,14 @@ class GameSession:
     async def start_round(self, dealer: int = 0):
         async with self._lock:
             # Save previous round to history before resetting (if there was one)
-            if self.captured_tricks:  # If there was a previous round
+            if self.trick_manager.captured_tricks:  # If there was a previous round
                 round_data = {
                     "round_number": len(self.rounds_history) + 1,
                     "dealer": self.current_dealer,  # Previous dealer
                     "bid_winner": self.bid_winner,
                     "bid_value": self.bid_value,
                     "trump": self.trump,
-                    "captured_tricks": [
-                        {
-                            "winner": winner,
-                            "cards": [
-                                {"seat": seat, "card": card.to_dict()}
-                                for seat, card in trick_cards
-                            ],
-                            "points": trick_points(trick_cards),
-                        }
-                        for winner, trick_cards in self.captured_tricks
-                    ],
+                    "captured_tricks": self.trick_manager.get_captured_tricks_for_serialization(),
                     "points_by_seat": dict(self.points_by_seat),
                     "team_scores": self.compute_scores(),
                 }
@@ -177,9 +163,7 @@ class GameSession:
             self.trump = None
             self.trump_hidden = True
             self.trump_owner = None
-            self.current_trick = []
-            self.last_trick = None
-            self.captured_tricks = []
+            self.trick_manager.reset()
             self.points_by_seat = {i: 0 for i in range(self.seats)}
             return True
 
@@ -192,22 +176,10 @@ class GameSession:
             p for _, p in sorted(self.players.items(), key=lambda kv: kv[0])
         ]
 
-        # Build current_trick as dict mapping seat -> card
-        current_trick_dict = None
-        lead_suit = None
-        if self.current_trick:
-            current_trick_dict = {seat: card.to_dict() for seat, card in self.current_trick}
-            # Lead suit is the suit of the first card played
-            lead_suit = self.current_trick[0][1].suit
-
-        # Build last_trick as dict mapping seat -> card, with winner info
-        last_trick_dict = None
-        if self.last_trick:
-            winner, trick_cards = self.last_trick
-            last_trick_dict = {
-                "winner": winner,
-                "cards": {seat: card.to_dict() for seat, card in trick_cards}
-            }
+        # Get trick state from TrickManager
+        current_trick_dict = self.trick_manager.get_current_trick_dict()
+        lead_suit = self.trick_manager.get_lead_suit()
+        last_trick_dict = self.trick_manager.get_last_trick_dict()
 
         dto = GameStateDTO(
             game_id=self.id,
@@ -363,7 +335,7 @@ class GameSession:
                 trump_hidden=self.trump_hidden,
                 player_seat=seat,
                 current_turn=self.turn,
-                current_trick=self.current_trick,
+                current_trick=self.trick_manager.current_trick,
                 player_hand=self.hands[seat],
             )
 
@@ -426,7 +398,7 @@ class GameSession:
             if seat != self.turn:
                 return None
             hand = self.hands[seat]
-            lead_suit = self.current_trick[0][1].suit if self.current_trick else None
+            lead_suit = self.trick_manager.get_lead_suit()
             suit_for_trump = None if self.trump_hidden else self.trump
             card = ai_module.select_card_to_play(hand, lead_suit, suit_for_trump)
             return {"type": "play_card", "payload": {"seat": seat, "card_id": card.uid}}
@@ -450,19 +422,21 @@ class GameSession:
             if card is None:
                 return False, "Card not in hand"
             # must follow suit if lead exists and player has lead suit
-            if self.current_trick:
-                lead_suit = self.current_trick[0][1].suit
-                if self._player_has_suit(seat, lead_suit) and card.suit != lead_suit:
-                    # violation of follow-suit rule: reject
-                    return False, "Must follow suit if possible"
+            lead_suit = self.trick_manager.get_lead_suit()
+            if lead_suit and self._player_has_suit(seat, lead_suit) and card.suit != lead_suit:
+                # violation of follow-suit rule: reject
+                return False, "Must follow suit if possible"
+
             # Save hand state before removing card (needed for reveal logic)
             hand_before_play = list(self.hands[seat])
 
             # remove card
             self.hands[seat].remove(card)
-            self.current_trick.append((seat, card))
+            self.trick_manager.add_card_to_current_trick(seat, card)
 
             # Check if trump should be revealed using HiddenTrumpManager
+            # Get trick before this card was added (need to subtract 1 from length)
+            trick_before_card = self.trick_manager.current_trick[:-1] if len(self.trick_manager.current_trick) > 0 else []
             should_reveal, reveal_reason = HiddenTrumpManager.should_reveal_trump(
                 trump_hidden=self.trump_hidden,
                 hidden_trump_mode=self.hidden_trump_mode,
@@ -470,7 +444,7 @@ class GameSession:
                 trump_suit=self.trump,
                 trump_owner_seat=self.trump_owner,
                 player_seat=seat,
-                current_trick=self.current_trick[:-1],  # Trick before this card
+                current_trick=trick_before_card,
                 player_hand=hand_before_play,  # Hand before card was removed
             )
 
@@ -487,18 +461,14 @@ class GameSession:
             self.turn = (self.turn - 1) % self.seats
 
             # if trick complete
-            if len(self.current_trick) >= self.seats:
+            if self.trick_manager.is_trick_complete(self.seats):
                 # Pass trump only if revealed; if hidden, pass None so no trump consideration
-                winner = determine_trick_winner(
-                    self.current_trick, self.trump if not self.trump_hidden else None
+                winner = self.trick_manager.complete_trick(
+                    self.trump if not self.trump_hidden else None,
+                    self.points_by_seat
                 )
-                pts = trick_points(self.current_trick)
-                # Save the completed trick before clearing
-                self.last_trick = (winner, list(self.current_trick))
-                self.captured_tricks.append((winner, list(self.current_trick)))
-                self.points_by_seat[winner] += pts
-                # clear current trick and set leader/turn to winner
-                self.current_trick = []
+                pts = self.points_by_seat[winner] - self.points_by_seat.get(winner, 0)  # Get points just awarded
+                # set leader/turn to winner
                 self.leader = winner
                 self.turn = winner
                 # check end of round: all hands empty
@@ -511,17 +481,7 @@ class GameSession:
                         "bid_winner": self.bid_winner,
                         "bid_value": self.bid_value,
                         "trump": self.trump,
-                        "captured_tricks": [
-                            {
-                                "winner": winner_seat,
-                                "cards": [
-                                    {"seat": seat, "card": card.to_dict()}
-                                    for seat, card in trick_cards
-                                ],
-                                "points": trick_points(trick_cards),
-                            }
-                            for winner_seat, trick_cards in self.captured_tricks
-                        ],
+                        "captured_tricks": self.trick_manager.get_captured_tricks_for_serialization(),
                         "points_by_seat": dict(self.points_by_seat),
                         "team_scores": self.compute_scores(),
                     }

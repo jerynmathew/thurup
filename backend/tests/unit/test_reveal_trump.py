@@ -69,7 +69,7 @@ class TestRevealTrump:
 
         # Player 3 plays the club
         sess.hands[3].remove(lead_card)
-        sess.current_trick.append((3, lead_card))
+        sess.trick_manager.current_trick.append((3, lead_card))
         # Clockwise: turn advances 3 -> 2
         sess.turn = 2
 
@@ -112,7 +112,7 @@ class TestRevealTrump:
         sess = await self.setup_game_in_play()
 
         # Player 3 is leading, no trick yet
-        assert len(sess.current_trick) == 0
+        assert len(sess.trick_manager.current_trick) == 0
 
         # Try to reveal trump (player 3 is leading)
         ok, msg = await sess.reveal_trump(3)
@@ -139,7 +139,7 @@ class TestRevealTrump:
 
         # Player 3 plays the club
         sess.hands[3].remove(lead_card)
-        sess.current_trick.append((3, lead_card))
+        sess.trick_manager.current_trick.append((3, lead_card))
         sess.turn = 2  # Clockwise: 3 -> 2
 
         # Ensure player 2 HAS clubs (can follow suit)
@@ -210,7 +210,7 @@ class TestRevealTrump:
 
         # Player 3 leads with the club
         sess.hands[3].remove(lead_card)
-        sess.current_trick.append((3, lead_card))
+        sess.trick_manager.current_trick.append((3, lead_card))
         sess.turn = 2  # Clockwise: 3 -> 2
 
         # Remove all clubs from player 2, but ensure they have hearts (trump)
@@ -246,7 +246,7 @@ class TestRevealTrump:
 
         # Player 3 leads with the club
         sess.hands[3].remove(lead_card)
-        sess.current_trick.append((3, lead_card))
+        sess.trick_manager.current_trick.append((3, lead_card))
         sess.turn = 2  # Clockwise: 3 -> 2
 
         # Remove all clubs AND hearts from player 2
@@ -280,7 +280,7 @@ class TestRevealTrump:
 
         # Player 3 leads with the club
         sess.hands[3].remove(lead_card)
-        sess.current_trick.append((3, lead_card))
+        sess.trick_manager.current_trick.append((3, lead_card))
         sess.turn = 2  # Clockwise: 3 -> 2
 
         # Player 2 follows suit (has clubs)
@@ -296,7 +296,7 @@ class TestRevealTrump:
             sess.hands[2].append(follow_card)
 
         sess.hands[2].remove(follow_card)
-        sess.current_trick.append((2, follow_card))
+        sess.trick_manager.current_trick.append((2, follow_card))
         sess.turn = 1  # Clockwise: 2 -> 1
 
         # Player 1 cannot follow suit
