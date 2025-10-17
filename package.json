@@ -1,0 +1,15 @@
+{
+  "name": "thurup",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Thurup card game - reverse proxy for deployment",
+  "scripts": {
+    "proxy": "node scripts/proxy.js"
+  },
+  "dependencies": {
+    "http-proxy": "^1.18.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

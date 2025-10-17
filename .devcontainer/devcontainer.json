@@ -1,0 +1,9 @@
+{
+  "name": "Thurup Devcontainer",
+  "image": "mcr.microsoft.com/vscode/devcontainers/python:3.11",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {}
+  },
+  "forwardPorts": [8000, 5173],
+  "postCreateCommand": "pip install -r backend/requirements.txt || true && cd frontend && npm install || true"
+}

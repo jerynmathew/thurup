@@ -1,0 +1,47 @@
+# Python
+backend/.venv
+**/__pycache__/
+*.pyc
+*.egg-info/
+
+# Node
+node_modules
+frontend/node_modules
+dist
+frontend/dist
+frontend/build/
+
+# Database
+backend/thurup.db
+backend/thurup_test.db
+backend/data/
+*.db-shm
+*.db-wal
+*.db-journal
+
+# Environment files (ALL variants)
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
+.env
+.env.*
+!.env.template
+
+# Build artifacts
+backend/build/
+
+# Deployment artifacts
+.thurup/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+

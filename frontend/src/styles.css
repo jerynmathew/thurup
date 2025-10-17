@@ -1,0 +1,129 @@
+/* frontend/src/styles.css */
+
+/* Banner */
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  max-width: 900px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+  font-weight: 500;
+}
+.banner-info {
+  background: #eef6ff;
+  color: #0f5db6;
+  border: 1px solid #d8e9ff;
+}
+.banner-error {
+  background: #fff2f0;
+  color: #8a1b0e;
+  border: 1px solid #ffd6d0;
+}
+.banner-close {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  margin-left: 12px;
+}
+
+/* players grid */
+.player-box {
+  padding: 10px;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #e6e6e6;
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+.player-seat {
+  font-size: 12px;
+  color: #777;
+}
+.player-name {
+  font-weight: 600;
+}
+.player-handsize {
+  font-size: 12px;
+  color: #444;
+}
+.player-bot {
+  font-size: 11px;
+  color: #666;
+  margin-top: 6px;
+}
+
+/* highlight current turn */
+.player-turn {
+  box-shadow: 0 0 0 3px rgba(48, 158, 255, 0.18), 0 6px 18px rgba(0,0,0,0.04);
+  border-color: #32a3ff;
+}
+.player-me {
+  border-style: dashed;
+}
+
+/* card */
+.card {
+  width: 72px;
+  height: 96px;
+  border-radius: 8px;
+  border: 1px solid #cfcfcf;
+  background: linear-gradient(180deg, #fff, #fbfbfb);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.card-disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.card-rank { font-weight: 700; }
+.card-suit { font-size: 26px; margin-top: 4px; }
+
+/* toast */
+.toast-container {
+  position: fixed;
+  right: 16px;
+  top: 16px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.toast {
+  background: #111827;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 8px 24px rgba(5,5,10,0.25);
+  min-width: 240px;
+}
+.toast-body { flex: 1; font-size: 14px; }
+.toast-close {
+  background: transparent;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+/* small responsive tweak */
+@media (max-width: 640px) {
+  .player-box { min-height: 60px; }
+  .card { width: 64px; height: 88px; }
+  .toast { min-width: 200px; }
+}

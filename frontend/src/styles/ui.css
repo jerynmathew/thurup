@@ -1,0 +1,60 @@
+/* src/styles/ui.css */
+
+/* Banner (inline error/success near top) */
+.banner {
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin: 8px 0;
+  font-weight: 600;
+}
+.banner--error { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+.banner--success { background: #ecfdf5; color: #065f46; border: 1px solid #bbf7d0; }
+
+/* Toast container */
+.toast-wrap {
+  position: fixed;
+  right: 16px;
+  bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 9999;
+}
+.toast {
+  min-width: 200px;
+  max-width: 320px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: #111827;
+  color: white;
+  font-size: 14px;
+  box-shadow: 0 6px 22px rgba(15, 23, 42, 0.35);
+  opacity: 0.98;
+}
+.toast--info { background: #111827; }
+.toast--success { background: #065f46; }
+.toast--error { background: #7f1d1d; }
+
+/* Seat UI */
+.seat {
+  width: 80px;
+  height: 80px;
+  border-radius: 12px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background: #f8fafc;
+  border: 2px solid transparent;
+  transition: transform .12s ease, border-color .12s ease, box-shadow .12s ease;
+}
+.seat--active {
+  border-color: #06b6d4;
+  transform: scale(1.05);
+  box-shadow: 0 6px 18px rgba(6, 182, 212, 0.14);
+}
+
+/* Simple small utility */
+.row { display:flex; gap:12px; align-items:center; }
+.col { display:flex; flex-direction:column; gap:8px; }
+.btn { padding:8px 12px; border-radius:8px; border:none; cursor:pointer; }
+.select { padding:6px 8px; border-radius:8px; }

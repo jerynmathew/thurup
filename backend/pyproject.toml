@@ -1,0 +1,29 @@
+[project]
+name = "thurup-backend"
+version = "0.1.0"
+description = "FastAPI backend for Thurup game"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "pydantic>=2.10.0",
+    "websockets>=14.0",
+    "pytest-asyncio>=0.25.0",
+    "pytest>=8.4.0",
+    "structlog>=24.4.0",
+    "python-json-logger>=3.2.0",
+    "sqlmodel>=0.0.22",
+    "alembic>=1.14.0",
+    "aiosqlite>=0.20.0",
+    "greenlet>=3.0.0",
+]
+
+[tool.uv]
+# optional extra configs for uv if needed
+dev-dependencies = [
+    "pytest>=8.4.0",
+    "ruff>=0.8.0",
+    "black>=24.0.0",
+    "httpx>=0.28.1",
+    "requests>=2.32.0",
+]

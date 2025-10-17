@@ -1,0 +1,5 @@
+FROM node:20-alpine
+WORKDIR /app
+COPY frontend/ /app/
+RUN npm ci
+CMD ["npm", "run", "preview"]
