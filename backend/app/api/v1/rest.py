@@ -22,7 +22,8 @@ from app.api.v1.router import SESSIONS, router, sessions_lock
 from app.constants import ErrorMessage
 from app.db.config import get_db
 from app.db.repository import GameRepository
-from app.game.session import GameSession, SessionState
+from app.game.enums import SessionState
+from app.game.session import GameSession
 from app.logging_config import get_logger
 from app.utils import generate_short_code
 from app.utils.game_resolution import resolve_game_identifier

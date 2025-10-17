@@ -16,8 +16,9 @@ from app.db.repository import (
     RoundHistoryRepository,
     SnapshotRepository,
 )
+from app.game.enums import HiddenTrumpMode, SessionState
 from app.game.rules import Card
-from app.game.session import GameSession, HiddenTrumpMode, SessionState
+from app.game.session import GameSession
 from app.logging_config import get_logger
 from app.models import PlayerInfo
 

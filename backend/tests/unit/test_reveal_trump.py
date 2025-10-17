@@ -8,7 +8,8 @@ import pytest
 
 from app.constants import Suit
 from app.game.rules import Card
-from app.game.session import GameSession, SessionState
+from app.game.enums import SessionState
+from app.game.session import GameSession
 from app.models import ChooseTrumpCmd, PlayerInfo
 
 
@@ -44,7 +45,8 @@ class TestRevealTrump:
         assert sess.state == SessionState.PLAY
         assert sess.trump == Suit.HEARTS.value
         assert sess.trump_hidden is True
-        assert sess.turn == 0  # Leader starts
+        # With dealer=0, leader=(0-1)%4=3 (clockwise direction)
+        assert sess.turn == 3  # Leader starts
 
         return sess
 
@@ -52,28 +54,30 @@ class TestRevealTrump:
         """Test successful trump reveal when player can't follow suit."""
         sess = await self.setup_game_in_play()
 
-        # Ensure player 0 has a club to lead with
+        # Player 3 leads (turn starts at 3 with dealer=0 in clockwise)
+        # Ensure player 3 has a club to lead with
         lead_card = None
-        for card in sess.hands[0]:
+        for card in sess.hands[3]:
             if card.suit == Suit.CLUBS.value:
                 lead_card = card
                 break
 
-        # If player 0 doesn't have a club, add one
+        # If player 3 doesn't have a club, add one
         if lead_card is None:
             lead_card = Card(suit=Suit.CLUBS.value, rank="Q", uid="Q♣#1")
-            sess.hands[0].append(lead_card)
+            sess.hands[3].append(lead_card)
 
-        # Player 0 plays the club
-        sess.hands[0].remove(lead_card)
-        sess.current_trick.append((0, lead_card))
-        sess.turn = 1
+        # Player 3 plays the club
+        sess.hands[3].remove(lead_card)
+        sess.current_trick.append((3, lead_card))
+        # Clockwise: turn advances 3 -> 2
+        sess.turn = 2
 
-        # Remove all clubs from player 1's hand to force can't-follow-suit
-        sess.hands[1] = [c for c in sess.hands[1] if c.suit != Suit.CLUBS.value]
+        # Remove all clubs from player 2's hand to force can't-follow-suit
+        sess.hands[2] = [c for c in sess.hands[2] if c.suit != Suit.CLUBS.value]
 
-        # Player 1 should be able to reveal trump
-        ok, msg = await sess.reveal_trump(1)
+        # Player 2 should be able to reveal trump
+        ok, msg = await sess.reveal_trump(2)
 
         assert ok is True
         assert "revealed" in msg.lower()
@@ -83,8 +87,8 @@ class TestRevealTrump:
         """Test that revealing trump fails if it's not your turn."""
         sess = await self.setup_game_in_play()
 
-        # Try to reveal when it's player 0's turn, but player 1 attempts
-        ok, msg = await sess.reveal_trump(1)
+        # Turn is 3 (player 3's turn), player 0 attempts to reveal
+        ok, msg = await sess.reveal_trump(0)
 
         assert ok is False
         assert "not your turn" in msg.lower()
@@ -97,8 +101,8 @@ class TestRevealTrump:
         # Manually reveal trump
         sess.trump_hidden = False
 
-        # Try to reveal again
-        ok, msg = await sess.reveal_trump(0)
+        # Try to reveal again (player 3 whose turn it is)
+        ok, msg = await sess.reveal_trump(3)
 
         assert ok is False
         assert "already revealed" in msg.lower()
@@ -107,11 +111,11 @@ class TestRevealTrump:
         """Test that revealing trump fails when leading (no current trick)."""
         sess = await self.setup_game_in_play()
 
-        # Player 0 is leading, no trick yet
+        # Player 3 is leading, no trick yet
         assert len(sess.current_trick) == 0
 
-        # Try to reveal trump
-        ok, msg = await sess.reveal_trump(0)
+        # Try to reveal trump (player 3 is leading)
+        ok, msg = await sess.reveal_trump(3)
 
         assert ok is False
         assert "cannot reveal" in msg.lower() or "leading" in msg.lower()
@@ -121,31 +125,31 @@ class TestRevealTrump:
         """Test that revealing trump fails when player can follow suit."""
         sess = await self.setup_game_in_play()
 
-        # Ensure player 0 has a club to lead with
+        # Ensure player 3 has a club to lead with
         lead_card = None
-        for card in sess.hands[0]:
+        for card in sess.hands[3]:
             if card.suit == Suit.CLUBS.value:
                 lead_card = card
                 break
 
-        # If player 0 doesn't have a club, add one
+        # If player 3 doesn't have a club, add one
         if lead_card is None:
             lead_card = Card(suit=Suit.CLUBS.value, rank="K", uid="K♣#1")
-            sess.hands[0].append(lead_card)
+            sess.hands[3].append(lead_card)
 
-        # Player 0 plays the club
-        sess.hands[0].remove(lead_card)
-        sess.current_trick.append((0, lead_card))
-        sess.turn = 1
+        # Player 3 plays the club
+        sess.hands[3].remove(lead_card)
+        sess.current_trick.append((3, lead_card))
+        sess.turn = 2  # Clockwise: 3 -> 2
 
-        # Ensure player 1 HAS clubs (can follow suit)
-        has_clubs = any(c.suit == Suit.CLUBS.value for c in sess.hands[1])
+        # Ensure player 2 HAS clubs (can follow suit)
+        has_clubs = any(c.suit == Suit.CLUBS.value for c in sess.hands[2])
         if not has_clubs:
-            # Add a club to player 1's hand
-            sess.hands[1].append(Card(suit=Suit.CLUBS.value, rank="7", uid="7♣#1"))
+            # Add a club to player 2's hand
+            sess.hands[2].append(Card(suit=Suit.CLUBS.value, rank="7", uid="7♣#1"))
 
         # Try to reveal trump
-        ok, msg = await sess.reveal_trump(1)
+        ok, msg = await sess.reveal_trump(2)
 
         assert ok is False
         assert "can follow suit" in msg.lower() or "cannot reveal" in msg.lower()
@@ -192,31 +196,31 @@ class TestRevealTrump:
         """Test that after revealing trump, player must play trump if they have it."""
         sess = await self.setup_game_in_play()
 
-        # Ensure player 0 has a club to lead with
+        # Ensure player 3 has a club to lead with
         lead_card = None
-        for card in sess.hands[0]:
+        for card in sess.hands[3]:
             if card.suit == Suit.CLUBS.value:
                 lead_card = card
                 break
 
-        # If player 0 doesn't have a club, add one
+        # If player 3 doesn't have a club, add one
         if lead_card is None:
             lead_card = Card(suit=Suit.CLUBS.value, rank="9", uid="9♣#1")
-            sess.hands[0].append(lead_card)
+            sess.hands[3].append(lead_card)
 
-        # Player 0 leads with the club
-        sess.hands[0].remove(lead_card)
-        sess.current_trick.append((0, lead_card))
-        sess.turn = 1
+        # Player 3 leads with the club
+        sess.hands[3].remove(lead_card)
+        sess.current_trick.append((3, lead_card))
+        sess.turn = 2  # Clockwise: 3 -> 2
 
-        # Remove all clubs from player 1, but ensure they have hearts (trump)
-        sess.hands[1] = [c for c in sess.hands[1] if c.suit != Suit.CLUBS.value]
-        has_hearts = any(c.suit == Suit.HEARTS.value for c in sess.hands[1])
+        # Remove all clubs from player 2, but ensure they have hearts (trump)
+        sess.hands[2] = [c for c in sess.hands[2] if c.suit != Suit.CLUBS.value]
+        has_hearts = any(c.suit == Suit.HEARTS.value for c in sess.hands[2])
         if not has_hearts:
-            sess.hands[1].append(Card(suit=Suit.HEARTS.value, rank="7", uid="7♥#1"))
+            sess.hands[2].append(Card(suit=Suit.HEARTS.value, rank="7", uid="7♥#1"))
 
         # Reveal trump
-        ok, msg = await sess.reveal_trump(1)
+        ok, msg = await sess.reveal_trump(2)
         assert ok is True
         assert sess.trump_hidden is False
 
@@ -228,31 +232,31 @@ class TestRevealTrump:
         """Test revealing trump when player has no trump cards (should still work)."""
         sess = await self.setup_game_in_play()
 
-        # Ensure player 0 has a club to lead with
+        # Ensure player 3 has a club to lead with
         lead_card = None
-        for card in sess.hands[0]:
+        for card in sess.hands[3]:
             if card.suit == Suit.CLUBS.value:
                 lead_card = card
                 break
 
-        # If player 0 doesn't have a club, add one
+        # If player 3 doesn't have a club, add one
         if lead_card is None:
             lead_card = Card(suit=Suit.CLUBS.value, rank="8", uid="8♣#1")
-            sess.hands[0].append(lead_card)
+            sess.hands[3].append(lead_card)
 
-        # Player 0 leads with the club
-        sess.hands[0].remove(lead_card)
-        sess.current_trick.append((0, lead_card))
-        sess.turn = 1
+        # Player 3 leads with the club
+        sess.hands[3].remove(lead_card)
+        sess.current_trick.append((3, lead_card))
+        sess.turn = 2  # Clockwise: 3 -> 2
 
-        # Remove all clubs AND hearts from player 1
-        sess.hands[1] = [
-            c for c in sess.hands[1]
+        # Remove all clubs AND hearts from player 2
+        sess.hands[2] = [
+            c for c in sess.hands[2]
             if c.suit not in [Suit.CLUBS.value, Suit.HEARTS.value]
         ]
 
-        # Player 1 should still be able to reveal trump
-        ok, msg = await sess.reveal_trump(1)
+        # Player 2 should still be able to reveal trump
+        ok, msg = await sess.reveal_trump(2)
 
         assert ok is True
         assert sess.trump_hidden is False
@@ -262,44 +266,44 @@ class TestRevealTrump:
         """Test trump reveal in a multi-player trick scenario."""
         sess = await self.setup_game_in_play()
 
-        # Ensure player 0 has a club to lead with
+        # Ensure player 3 has a club to lead with
         lead_card = None
-        for card in sess.hands[0]:
+        for card in sess.hands[3]:
             if card.suit == Suit.CLUBS.value:
                 lead_card = card
                 break
 
-        # If player 0 doesn't have a club, add one
+        # If player 3 doesn't have a club, add one
         if lead_card is None:
             lead_card = Card(suit=Suit.CLUBS.value, rank="10", uid="10♣#1")
-            sess.hands[0].append(lead_card)
+            sess.hands[3].append(lead_card)
 
-        # Player 0 leads with the club
-        sess.hands[0].remove(lead_card)
-        sess.current_trick.append((0, lead_card))
-        sess.turn = 1
+        # Player 3 leads with the club
+        sess.hands[3].remove(lead_card)
+        sess.current_trick.append((3, lead_card))
+        sess.turn = 2  # Clockwise: 3 -> 2
 
-        # Player 1 follows suit (has clubs)
+        # Player 2 follows suit (has clubs)
         follow_card = None
-        for card in sess.hands[1]:
+        for card in sess.hands[2]:
             if card.suit == Suit.CLUBS.value:
                 follow_card = card
                 break
 
-        # Ensure player 1 has a club to follow with
+        # Ensure player 2 has a club to follow with
         if follow_card is None:
             follow_card = Card(suit=Suit.CLUBS.value, rank="J", uid="J♣#1")
-            sess.hands[1].append(follow_card)
+            sess.hands[2].append(follow_card)
 
-        sess.hands[1].remove(follow_card)
-        sess.current_trick.append((1, follow_card))
-        sess.turn = 2
+        sess.hands[2].remove(follow_card)
+        sess.current_trick.append((2, follow_card))
+        sess.turn = 1  # Clockwise: 2 -> 1
 
-        # Player 2 cannot follow suit
-        sess.hands[2] = [c for c in sess.hands[2] if c.suit != Suit.CLUBS.value]
+        # Player 1 cannot follow suit
+        sess.hands[1] = [c for c in sess.hands[1] if c.suit != Suit.CLUBS.value]
 
-        # Player 2 reveals trump
-        ok, msg = await sess.reveal_trump(2)
+        # Player 1 reveals trump
+        ok, msg = await sess.reveal_trump(1)
 
         assert ok is True
         assert sess.trump_hidden is False

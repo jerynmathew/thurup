@@ -9,7 +9,8 @@ from fastapi.testclient import TestClient
 
 from app.api.v1.router import SESSIONS
 from app.constants import Suit
-from app.game.session import GameSession, SessionState
+from app.game.enums import SessionState
+from app.game.session import GameSession
 from app.main import app
 from app.models import PlayerInfo
 

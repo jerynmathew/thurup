@@ -3,10 +3,10 @@ from __future__ import annotations
 import asyncio
 import random
 import uuid
-from enum import Enum
 from typing import Dict, List, Optional, Tuple
 
 from app.constants import BidValue, ErrorMessage, GameConfig, GameMode, Suit
+from app.game.enums import HiddenTrumpMode, SessionState
 from app.game.rules import (
     Card,
     deal,
@@ -15,27 +15,11 @@ from app.game.rules import (
     shuffle_deck,
     trick_points,
 )
+from app.game.hidden_trump import HiddenTrumpManager
 from app.logging_config import get_logger
 from app.models import BidCmd, ChooseTrumpCmd, GameStateDTO, PlayCardCmd, PlayerInfo
 
 logger = get_logger(__name__)
-
-
-class HiddenTrumpMode(str, Enum):
-    ON_FIRST_NONFOLLOW = "on_first_nonfollow"
-    ON_FIRST_TRUMP_PLAY = "on_first_trump_play"
-    ON_BIDDER_NONFOLLOW = "on_bidder_nonfollow"
-    OPEN_IMMEDIATELY = "open_immediately"
-
-
-class SessionState(str, Enum):
-    LOBBY = "lobby"
-    DEALING = "dealing"
-    BIDDING = "bidding"
-    CHOOSE_TRUMP = "choose_trump"
-    PLAY = "play"
-    SCORING = "scoring"
-    ROUND_END = "round_end"
 
 
 class GameSession:
@@ -371,21 +355,20 @@ class GameSession:
         async with self._lock:
             if self.state != SessionState.PLAY:
                 return False, "Not in play phase"
-            if seat != self.turn:
-                return False, "Not your turn"
-            if not self.trump_hidden:
-                return False, "Trump already revealed"
             if seat not in self.players:
                 return False, "Unknown seat"
 
-            # Must be during an active trick (not leading)
-            if not self.current_trick:
-                return False, "Cannot reveal trump when leading"
+            # Use HiddenTrumpManager for validation
+            is_valid, error_msg = HiddenTrumpManager.validate_manual_reveal(
+                trump_hidden=self.trump_hidden,
+                player_seat=seat,
+                current_turn=self.turn,
+                current_trick=self.current_trick,
+                player_hand=self.hands[seat],
+            )
 
-            # Verify player can't follow suit
-            lead_suit = self.current_trick[0][1].suit
-            if self._player_has_suit(seat, lead_suit):
-                return False, "You can follow suit, cannot reveal trump"
+            if not is_valid:
+                return False, error_msg
 
             # Reveal trump
             self.trump_hidden = False
@@ -472,45 +455,33 @@ class GameSession:
                 if self._player_has_suit(seat, lead_suit) and card.suit != lead_suit:
                     # violation of follow-suit rule: reject
                     return False, "Must follow suit if possible"
+            # Save hand state before removing card (needed for reveal logic)
+            hand_before_play = list(self.hands[seat])
+
             # remove card
             self.hands[seat].remove(card)
             self.current_trick.append((seat, card))
-            # detect hidden-trump reveal rules
-            if (
-                self.trump_hidden
-                and self.hidden_trump_mode == HiddenTrumpMode.ON_FIRST_TRUMP_PLAY
-            ):
-                if card.suit == self.trump:
-                    self.trump_hidden = False
-            if (
-                self.trump_hidden
-                and self.hidden_trump_mode == HiddenTrumpMode.ON_FIRST_NONFOLLOW
-            ):
-                if self.current_trick and len(self.current_trick) >= 1:
-                    lead_suit = self.current_trick[0][1].suit
-                    if (
-                        self._player_has_suit(seat, lead_suit)
-                        and card.suit != lead_suit
-                    ):
-                        # player had lead suit but didn't follow: reveal trump
-                        self.trump_hidden = False
-            if (
-                self.trump_hidden
-                and self.hidden_trump_mode == HiddenTrumpMode.ON_BIDDER_NONFOLLOW
-            ):
-                if seat == self.trump_owner:
-                    if self.current_trick:
-                        lead_suit = self.current_trick[0][1].suit
-                        if (
-                            self._player_has_suit(seat, lead_suit)
-                            and card.suit != lead_suit
-                        ):
-                            self.trump_hidden = False
-            if (
-                self.trump_hidden
-                and self.hidden_trump_mode == HiddenTrumpMode.OPEN_IMMEDIATELY
-            ):
+
+            # Check if trump should be revealed using HiddenTrumpManager
+            should_reveal, reveal_reason = HiddenTrumpManager.should_reveal_trump(
+                trump_hidden=self.trump_hidden,
+                hidden_trump_mode=self.hidden_trump_mode,
+                played_card=card,
+                trump_suit=self.trump,
+                trump_owner_seat=self.trump_owner,
+                player_seat=seat,
+                current_trick=self.current_trick[:-1],  # Trick before this card
+                player_hand=hand_before_play,  # Hand before card was removed
+            )
+
+            if should_reveal:
                 self.trump_hidden = False
+                logger.info(
+                    "trump_revealed_automatically",
+                    game_id=self.id,
+                    reason=reveal_reason,
+                    trump=self.trump,
+                )
 
             # advance turn (clockwise)
             self.turn = (self.turn - 1) % self.seats
