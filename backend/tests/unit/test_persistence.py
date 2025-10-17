@@ -122,9 +122,9 @@ async def test_save_session_with_game_state(
     loaded_session = await persistence.load_session(sample_session.id)
     assert loaded_session is not None
     assert loaded_session.state == SessionState.BIDDING
-    assert loaded_session.bids[3] == 15
-    assert loaded_session.bids[2] == 16
-    assert loaded_session.current_highest == 16
+    assert loaded_session.bidding_manager.bids[3] == 15
+    assert loaded_session.bidding_manager.bids[2] == 16
+    assert loaded_session.bidding_manager.current_highest == 16
     assert len(loaded_session.hands[0]) > 0  # Cards were dealt
 
 
@@ -152,7 +152,7 @@ async def test_update_existing_session(
     loaded_session = await persistence.load_session(sample_session.id)
     assert loaded_session is not None
     assert loaded_session.state == SessionState.BIDDING
-    assert loaded_session.bids[3] == 15
+    assert loaded_session.bidding_manager.bids[3] == 15
 
 
 @pytest.mark.asyncio
