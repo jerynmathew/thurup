@@ -22,7 +22,7 @@ async def act_when_turn(
         if (
             sess.turn == seat
             and sess.state == SessionState.BIDDING
-            and sess.bids.get(seat) is None
+            and sess.bidding_manager.bids.get(seat) is None
         ):
             ok, msg = await sess.place_bid(seat, BidCmd(value=bid_value))
             return ok, msg
@@ -69,9 +69,9 @@ async def test_sequential_bidding_order_and_transition():
         sess.state == SessionState.CHOOSE_TRUMP
     ), f"expected CHOOSE_TRUMP got {sess.state}"
     # bids recorded correctly (no None left)
-    assert all(v is not None for v in sess.bids.values())
+    assert all(v is not None for v in sess.bidding_manager.bids.values())
     for s, v in actions.items():
-        assert sess.bids[s] == v
+        assert sess.bidding_manager.bids[s] == v
 
 
 @pytest.mark.asyncio
@@ -103,7 +103,7 @@ async def test_all_pass_redeal_nonblocking():
     ), f"expected BIDDING after redeal, got {sess.state}"
     # bids should have been reset to None for the new round
     assert all(
-        v is None for v in sess.bids.values()
+        v is None for v in sess.bidding_manager.bids.values()
     ), "bids should be reset (None) after redeal"
     # hand sizes should match expected hand size for mode (basic sanity)
     from app.game.rules import hand_size_for

@@ -14,8 +14,8 @@ async def test_scoring_bid_success_and_failure():
     await sess.start_round(dealer=0)
     # give captured points artificially: seat0 wins two tricks totaling 18 points
     sess.points_by_seat = {0: 10, 1: 0, 2: 9, 3: 0}
-    sess.bid_winner = 0
-    sess.bid_value = 16
+    sess.bidding_manager.bid_winner = 0
+    sess.bidding_manager.bid_value = 16
     scores = sess.compute_scores()
     assert scores["bid_outcome"]["success"] is True
 
@@ -25,7 +25,7 @@ async def test_scoring_bid_success_and_failure():
         await sess2.add_player(PlayerInfo(player_id=f"q{i}", name=f"q{i}"))
     await sess2.start_round(dealer=0)
     sess2.points_by_seat = {0: 5, 1: 0, 2: 6, 3: 0}  # team0 has 11
-    sess2.bid_winner = 0
-    sess2.bid_value = 14
+    sess2.bidding_manager.bid_winner = 0
+    sess2.bidding_manager.bid_value = 14
     scores2 = sess2.compute_scores()
     assert scores2["bid_outcome"]["success"] is False

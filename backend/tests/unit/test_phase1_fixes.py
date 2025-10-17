@@ -74,9 +74,9 @@ class TestConcurrencyFixes:
         assert results[2][0]  # Seat 1's turn after 2
 
         # Verify state is consistent (no corruption)
-        assert sess.current_highest == 17
-        assert sess.bid_winner == 1
-        assert len([b for b in sess.bids.values() if b is not None]) == 3
+        assert sess.bidding_manager.current_highest == 17
+        assert sess.bidding_manager.bid_winner == 1
+        assert len([b for b in sess.bidding_manager.bids.values() if b is not None]) == 3
 
     @pytest.mark.asyncio
     async def test_no_seat_overflow(self):
@@ -114,12 +114,12 @@ class TestBidValidation:
         # First player (seat 3) passes with None
         ok1, msg1 = await sess.place_bid(sess.turn, BidCmd(value=None))
         assert ok1
-        assert sess.bids[3] == BidValue.PASS
+        assert sess.bidding_manager.bids[3] == BidValue.PASS
 
         # Second player (seat 2) passes with -1
         ok2, msg2 = await sess.place_bid(sess.turn, BidCmd(value=BidValue.PASS))
         assert ok2
-        assert sess.bids[2] == BidValue.PASS
+        assert sess.bidding_manager.bids[2] == BidValue.PASS
 
     @pytest.mark.asyncio
     async def test_bid_value_constraints(self):
@@ -172,7 +172,7 @@ class TestBidValidation:
         # First bid: 15 (seat 3)
         ok1, _ = await sess.place_bid(3, BidCmd(value=15))
         assert ok1
-        assert sess.current_highest == 15
+        assert sess.bidding_manager.current_highest == 15
 
         # Second player (seat 2) tries to bid 15 (equal to current)
         ok2, msg2 = await sess.place_bid(2, BidCmd(value=15))
@@ -182,7 +182,7 @@ class TestBidValidation:
         # Second player (seat 2) bids 16 (valid)
         ok3, _ = await sess.place_bid(2, BidCmd(value=16))
         assert ok3
-        assert sess.current_highest == 16
+        assert sess.bidding_manager.current_highest == 16
 
 
 class TestSequentialBidding:
@@ -240,7 +240,7 @@ class TestSequentialBidding:
 
         # State should transition to CHOOSE_TRUMP
         assert sess.state == SessionState.CHOOSE_TRUMP
-        assert sess.bid_winner == 3
+        assert sess.bidding_manager.bid_winner == 3
 
 
 class TestAllPassRedeal:
@@ -307,8 +307,8 @@ class TestStateTransitions:
 
         # Should transition to CHOOSE_TRUMP
         assert sess.state == SessionState.CHOOSE_TRUMP
-        assert sess.bid_winner == 3
-        assert sess.bid_value == 15
+        assert sess.bidding_manager.bid_winner == 3
+        assert sess.bidding_manager.bid_value == 15
 
     @pytest.mark.asyncio
     async def test_lobby_state_preserved(self):

@@ -36,8 +36,8 @@ class TestRevealTrump:
 
         # Skip bidding - manually set bid winner
         sess.state = SessionState.CHOOSE_TRUMP
-        sess.bid_winner = 2
-        sess.bid_value = 20
+        sess.bidding_manager.bid_winner = 2
+        sess.bidding_manager.bid_value = 20
 
         # Choose trump (will be hidden)
         await sess.choose_trump(2, ChooseTrumpCmd(suit=Suit.HEARTS.value))

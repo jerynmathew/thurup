@@ -14,6 +14,7 @@ from app.game.rules import (
     shuffle_deck,
     trick_points,
 )
+from app.game.bidding_manager import BiddingManager
 from app.game.hidden_trump import HiddenTrumpManager
 from app.game.trick_manager import TrickManager
 from app.logging_config import get_logger
@@ -48,10 +49,7 @@ class GameSession:
         self.state: SessionState = SessionState.LOBBY
 
         # bidding
-        self.bids: Dict[int, Optional[int]] = {i: None for i in range(seats)}
-        self.current_highest: Optional[int] = None
-        self.bid_winner: Optional[int] = None
-        self.bid_value: Optional[int] = None
+        self.bidding_manager = BiddingManager(seats)
 
         # trump
         self.trump: Optional[str] = None
@@ -69,9 +67,6 @@ class GameSession:
 
         # round history - track completed rounds for replay/analysis
         self.rounds_history: List[Dict[str, any]] = []
-
-        # track which seats have submitted bids in the current bidding round
-        self._bids_received: set[int] = set()
 
         # locks
         self._lock = asyncio.Lock()
@@ -104,8 +99,8 @@ class GameSession:
                 round_data = {
                     "round_number": len(self.rounds_history) + 1,
                     "dealer": self.current_dealer,  # Previous dealer
-                    "bid_winner": self.bid_winner,
-                    "bid_value": self.bid_value,
+                    "bid_winner": self.bidding_manager.bid_winner,
+                    "bid_value": self.bidding_manager.bid_value,
                     "trump": self.trump,
                     "captured_tricks": self.trick_manager.get_captured_tricks_for_serialization(),
                     "points_by_seat": dict(self.points_by_seat),
@@ -116,7 +111,7 @@ class GameSession:
                     "round_saved_to_history",
                     game_id=self.id,
                     round_number=round_data["round_number"],
-                    bid_winner=self.bid_winner,
+                    bid_winner=self.bidding_manager.bid_winner,
                     team_scores=round_data["team_scores"],
                 )
 
@@ -153,13 +148,7 @@ class GameSession:
 
             self.state = SessionState.BIDDING
             # reset bidding/tricks
-            # track bids as a dict mapping seat -> Optional[int]
-            self.bids = {i: None for i in range(self.seats)}
-            # track which seats have actually submitted (pass or bid)
-            self._bids_received = set()
-            self.current_highest = None
-            self.bid_winner = None
-            self.bid_value = None
+            self.bidding_manager.reset()
             self.trump = None
             self.trump_hidden = True
             self.trump_owner = None
@@ -194,10 +183,10 @@ class GameSession:
             trump=None if self.trump_hidden else self.trump,
             kitty=[c.to_dict() for c in self.kitty],
             hand_sizes={s: len(self.hands[s]) for s in range(self.seats)},
-            bids=self.bids,
-            current_highest=self.current_highest,
-            bid_winner=self.bid_winner,
-            bid_value=self.bid_value,
+            bids=self.bidding_manager.get_bids_dict(),
+            current_highest=self.bidding_manager.current_highest,
+            bid_winner=self.bidding_manager.bid_winner,
+            bid_value=self.bidding_manager.bid_value,
             points_by_seat=self.points_by_seat,
             current_trick=current_trick_dict,
             lead_suit=lead_suit,
@@ -228,36 +217,17 @@ class GameSession:
 
             val = bid_cmd.value
 
-            # Defensive: ensure seat hasn't acted yet
-            if self.bids.get(seat) is not None:
-                return False, "Seat already acted"
+            # Validate bid using BiddingManager
+            is_valid, error_msg = self.bidding_manager.validate_bid(
+                seat, val, self.min_bid, self.mode
+            )
+            if not is_valid:
+                return False, error_msg
 
-            # Treat both None and -1 as a pass from external callers
-            if val is None or val == BidValue.PASS:
-                # mark passed with internal sentinel
-                self.bids[seat] = BidValue.PASS
-                self._bids_received.add(seat)
-            else:
-                # validate numeric bid
-                if not isinstance(val, int):
-                    return False, "Bid must be integer (use -1 or None for pass)"
-                if val < self.min_bid:
-                    return False, f"Bid must be >= {self.min_bid}"
-                max_total = (
-                    GameConfig.MAX_BID_28
-                    if self.mode == GameMode.MODE_28.value
-                    else GameConfig.MAX_BID_56
-                )
-                if val > max_total:
-                    return False, f"Bid cannot exceed {max_total}"
-                if self.current_highest is not None and val <= self.current_highest:
-                    return False, "Bid must be higher than current highest"
-                self.bids[seat] = val
-                self._bids_received.add(seat)
-                if self.current_highest is None or val > self.current_highest:
-                    self.current_highest = val
-                    self.bid_winner = seat
-                    self.bid_value = val
+            # Place bid using BiddingManager
+            success, msg = self.bidding_manager.place_bid(seat, val)
+            if not success:
+                return False, msg
 
             # debug log
             logger.debug(
@@ -265,18 +235,18 @@ class GameSession:
                 game_id=self.id,
                 seat=seat,
                 value=val,
-                current_highest=self.current_highest,
-                bids_received=sorted(self._bids_received),
+                current_highest=self.bidding_manager.current_highest,
+                bids_received=sorted(self.bidding_manager.bids_received),
                 turn_before=self.turn,
             )
 
             # advance to next seat (clockwise)
             self.turn = (self.turn - 1) % self.seats
 
-            # Check if bidding round complete (no None left)
-            if all(v is not None for v in self.bids.values()):
+            # Check if bidding round complete using BiddingManager
+            if self.bidding_manager.is_complete():
                 # if all passed, schedule redeal (but do not await start_round while holding lock)
-                if all(v == BidValue.PASS for v in self.bids.values()):
+                if self.bidding_manager.all_passed():
                     need_redeal = True
                     result = (True, "All passed: will redeal")
                 else:
@@ -299,7 +269,7 @@ class GameSession:
         async with self._lock:
             if self.state != SessionState.CHOOSE_TRUMP:
                 return False, "Not waiting for trump"
-            if seat != self.bid_winner:
+            if seat != self.bidding_manager.bid_winner:
                 return False, "Only bid winner can choose trump"
             s = cmd.suit
             valid_suits = [suit.value for suit in Suit]
@@ -369,7 +339,7 @@ class GameSession:
             # Only act if it's this seat's turn and it's still waiting (None)
             if seat != self.turn:
                 return None
-            if self.bids.get(seat) is not None:
+            if self.bidding_manager.bids.get(seat) is not None:
                 # already acted
                 return None
             hand = self.hands[seat]
@@ -382,13 +352,13 @@ class GameSession:
                     if self.mode == GameMode.MODE_28.value
                     else GameConfig.MAX_BID_56
                 ),
-                current_highest=self.current_highest,
+                current_highest=self.bidding_manager.current_highest,
                 mode="easy",
             )
             return {"type": "place_bid", "payload": {"seat": seat, "value": bid_value}}
 
         if self.state == SessionState.CHOOSE_TRUMP:
-            if self.bid_winner != seat:
+            if self.bidding_manager.bid_winner != seat:
                 return None
             hand = self.hands[seat]
             suit = ai_module.choose_trump_suit(hand)
@@ -478,8 +448,8 @@ class GameSession:
                     round_data = {
                         "round_number": len(self.rounds_history) + 1,
                         "dealer": self.leader,
-                        "bid_winner": self.bid_winner,
-                        "bid_value": self.bid_value,
+                        "bid_winner": self.bidding_manager.bid_winner,
+                        "bid_value": self.bidding_manager.bid_value,
                         "trump": self.trump,
                         "captured_tricks": self.trick_manager.get_captured_tricks_for_serialization(),
                         "points_by_seat": dict(self.points_by_seat),
@@ -490,7 +460,7 @@ class GameSession:
                         "round_completed_and_saved",
                         game_id=self.id,
                         round_number=round_data["round_number"],
-                        bid_winner=self.bid_winner,
+                        bid_winner=self.bidding_manager.bid_winner,
                         team_scores=round_data["team_scores"],
                     )
                     # scoring will be computed by caller
@@ -507,12 +477,12 @@ class GameSession:
             team_idx = 0 if seat % 2 == 0 else 1
             team_points[team_idx] += pts
         bid_outcome = None
-        if self.bid_winner is not None and self.bid_value is not None:
-            winning_team = 0 if self.bid_winner % 2 == 0 else 1
-            success = team_points[winning_team] >= self.bid_value
+        if self.bidding_manager.bid_winner is not None and self.bidding_manager.bid_value is not None:
+            winning_team = 0 if self.bidding_manager.bid_winner % 2 == 0 else 1
+            success = team_points[winning_team] >= self.bidding_manager.bid_value
             bid_outcome = {
-                "bid_winner": self.bid_winner,
-                "bid_value": self.bid_value,
+                "bid_winner": self.bidding_manager.bid_winner,
+                "bid_value": self.bidding_manager.bid_value,
                 "winning_team": winning_team,
                 "success": success,
             }

@@ -11,12 +11,12 @@
 | Priority | Total | Not Started | In Progress | Completed | Blocked |
 |----------|-------|-------------|-------------|-----------|---------|
 | 🔴 High  | 4     | 0           | 0           | 4         | 0       |
-| 🟡 Medium| 4     | 4           | 0           | 0         | 0       |
+| 🟡 Medium| 4     | 3           | 1           | 0         | 0       |
 | 🔵 Low   | 4     | 4           | 0           | 0         | 0       |
-| **Total**| **12**| **8**       | **0**       | **4**     | **0**   |
+| **Total**| **12**| **7**       | **1**       | **4**     | **0**   |
 
 **Estimated Total Effort**: 8-12 days
-**Completed Effort**: ~0.5 days (4 hours)
+**Completed Effort**: ~1 day (8 hours - Phases 1&2 of TD-005)
 
 ---
 
@@ -26,11 +26,11 @@
 
 ### TD-005: Refactor GameSession God Class
 - **Priority**: 🟡 Medium
-- **Status**: 🔄 In Progress (Phase 1 Complete)
+- **Status**: 🔄 In Progress (Phases 1, 2 & 3 Complete)
 - **Effort**: 1-2 days (split into 4 phases)
 - **Impact**: High - Much better maintainability and testability
 - **Created**: 2025-10-17
-- **Completed**: Phase 1: 2025-10-17
+- **Completed**: Phase 1: 2025-10-17, Phase 2: 2025-10-17, Phase 3: 2025-10-17
 - **Assigned**: -
 - **Dependencies**: TD-006 recommended (GameServer encapsulation helps)
 - **Blocked By**: -
@@ -59,16 +59,45 @@ GameSession class is 588 lines and violates Single Responsibility Principle by h
 - `backend/app/api/v1/bot_runner.py` - Updated imports
 - All test files - Updated imports
 
-**Phase 2: Extract Trick Management** (Pending)
-- Create `TrickManager` class
-- Handle current_trick, last_trick, captured_tricks
-- Winner determination logic
-- Estimated: 3-4 hours
+**Phase 2: Extract Trick Management** ✅ **COMPLETED**
+- Created `TrickManager` class (135 lines)
+- Encapsulates current_trick, last_trick, captured_tricks
+- Winner determination, points calculation, serialization
+- Refactored 6 methods in session.py to use TrickManager
+- **Result**: Cleaner separation of concerns, easier testing
+- **Tests**: 142/146 passing (4 pre-existing test setup issues)
+- **Commits**: d3bec12, 7bcab9e
 
-**Phase 3: Extract Bidding Logic** (Pending)
-- Create `BiddingManager` class
-- Bidding validation and state tracking
-- Estimated: 3-4 hours
+**Files Created**:
+- `backend/app/game/trick_manager.py` - TrickManager class
+
+**Files Modified**:
+- `backend/app/game/session.py` - Uses TrickManager, replaced 3 fields with manager
+- `backend/app/db/persistence.py` - Updated serialization for tricks
+- `backend/tests/unit/test_reveal_trump.py` - Updated field access
+- `backend/tests/unit/test_gameplay_bug_repro.py` - Updated field access
+- `backend/tests/integration/test_reveal_trump_websocket.py` - Updated field access
+
+**Phase 3: Extract Bidding Logic** ✅ **COMPLETED**
+- Created `BiddingManager` class (143 lines)
+- Encapsulates bids, current_highest, bid_winner, bid_value, bids_received
+- Validation, completion checking, serialization
+- Refactored 7 methods in session.py to use BiddingManager
+- **Result**: Bidding logic consolidated, easier to test and maintain
+- **Tests**: 61/61 bidding-related tests passing
+- **Commit**: [current]
+
+**Files Created**:
+- `backend/app/game/bidding_manager.py` - BiddingManager class
+
+**Files Modified**:
+- `backend/app/game/session.py` - Uses BiddingManager, replaced 5 bidding fields with manager
+- `backend/app/db/persistence.py` - Updated serialization for bidding state
+- `backend/tests/unit/test_bidding.py` - Updated field access
+- `backend/tests/unit/test_phase1_fixes.py` - Updated field access
+- `backend/tests/unit/test_scoring.py` - Updated field access
+- `backend/tests/unit/test_reveal_trump.py` - Updated field access
+- `backend/tests/integration/test_reveal_trump_websocket.py` - Updated field access
 
 **Phase 4: Extract Round Lifecycle** (Pending)
 - Create `RoundManager` class

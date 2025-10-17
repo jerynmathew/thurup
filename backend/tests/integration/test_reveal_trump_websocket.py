@@ -43,8 +43,8 @@ def setup_game():
     sess.turn = 0
     sess.trump = Suit.HEARTS.value
     sess.trump_hidden = True
-    sess.bid_winner = 2
-    sess.bid_value = 20
+    sess.bidding_manager.bid_winner = 2
+    sess.bidding_manager.bid_value = 20
 
     # Give players some cards
     from app.game.rules import Card

@@ -183,9 +183,9 @@ class SessionPersistence:
         return {
             "leader": session.leader,
             "turn": session.turn,
-            "current_highest": session.current_highest,
-            "bid_winner": session.bid_winner,
-            "bid_value": session.bid_value,
+            "current_highest": session.bidding_manager.current_highest,
+            "bid_winner": session.bidding_manager.bid_winner,
+            "bid_value": session.bidding_manager.bid_value,
             "trump": session.trump,
             "trump_hidden": session.trump_hidden,
             "trump_owner": session.trump_owner,
@@ -207,11 +207,11 @@ class SessionPersistence:
             "kitty": [self._card_to_dict(c) for c in session.kitty],
             "hands": [[self._card_to_dict(c) for c in hand] for hand in session.hands],
             # Bidding
-            "bids": session.bids,
-            "bids_received": list(session._bids_received),
-            "current_highest": session.current_highest,
-            "bid_winner": session.bid_winner,
-            "bid_value": session.bid_value,
+            "bids": session.bidding_manager.get_bids_dict(),
+            "bids_received": list(session.bidding_manager.bids_received),
+            "current_highest": session.bidding_manager.current_highest,
+            "bid_winner": session.bidding_manager.bid_winner,
+            "bid_value": session.bidding_manager.bid_value,
             # Trump
             "trump": session.trump,
             "trump_hidden": session.trump_hidden,
@@ -255,12 +255,14 @@ class SessionPersistence:
             [self._dict_to_card(c) for c in hand] for hand in data["hands"]
         ]
 
-        # Restore bidding
-        session.bids = {int(k): v for k, v in data["bids"].items()}
-        session._bids_received = set(data["bids_received"])
-        session.current_highest = data["current_highest"]
-        session.bid_winner = data["bid_winner"]
-        session.bid_value = data["bid_value"]
+        # Restore bidding using BiddingManager
+        session.bidding_manager.restore_from_state(
+            bids={int(k): v for k, v in data["bids"].items()},
+            bids_received=set(data["bids_received"]),
+            current_highest=data["current_highest"],
+            bid_winner=data["bid_winner"],
+            bid_value=data["bid_value"],
+        )
 
         # Restore trump
         session.trump = data["trump"]
@@ -307,9 +309,11 @@ class SessionPersistence:
             phase_data = json.loads(game.current_phase_data)
             session.leader = phase_data.get("leader", 0)
             session.turn = phase_data.get("turn", 0)
-            session.current_highest = phase_data.get("current_highest")
-            session.bid_winner = phase_data.get("bid_winner")
-            session.bid_value = phase_data.get("bid_value")
+            # Restore bidding state if present
+            if phase_data.get("current_highest") is not None or phase_data.get("bid_winner") is not None:
+                session.bidding_manager.current_highest = phase_data.get("current_highest")
+                session.bidding_manager.bid_winner = phase_data.get("bid_winner")
+                session.bidding_manager.bid_value = phase_data.get("bid_value")
             session.trump = phase_data.get("trump")
             session.trump_hidden = phase_data.get("trump_hidden", True)
             session.trump_owner = phase_data.get("trump_owner")
