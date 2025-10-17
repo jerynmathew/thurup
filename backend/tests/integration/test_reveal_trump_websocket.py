@@ -112,7 +112,7 @@ class TestRevealTrumpWebSocket:
         # Player 0 leads with a club
         lead_card = sess.hands[0][0]  # 7♣
         sess.hands[0].remove(lead_card)
-        sess.current_trick.append((0, lead_card))
+        sess.trick_manager.current_trick.append((0, lead_card))
         sess.turn = 1
 
         # Connect via WebSocket
@@ -218,7 +218,7 @@ class TestRevealTrumpWebSocket:
         # Player 0 leads with a club
         lead_card = sess.hands[0][0]  # 7♣
         sess.hands[0].remove(lead_card)
-        sess.current_trick.append((0, lead_card))
+        sess.trick_manager.current_trick.append((0, lead_card))
         sess.turn = 2
 
         # Player 2 has clubs (can follow suit)
@@ -258,7 +258,7 @@ class TestRevealTrumpWebSocket:
         game_id, sess = setup_game
 
         # Player 0 is leading, no trick yet
-        assert len(sess.current_trick) == 0
+        assert len(sess.trick_manager.current_trick) == 0
         assert sess.turn == 0
 
         with client.websocket_connect(f"/api/v1/ws/game/{game_id}") as websocket:
@@ -300,7 +300,7 @@ class TestRevealTrumpWebSocket:
         # Player 0 leads
         lead_card = sess.hands[0][0]
         sess.hands[0].remove(lead_card)
-        sess.current_trick.append((0, lead_card))
+        sess.trick_manager.current_trick.append((0, lead_card))
         sess.turn = 1
 
         with client.websocket_connect(f"/api/v1/ws/game/{game_id}") as websocket:
@@ -337,7 +337,7 @@ class TestRevealTrumpWebSocket:
         # Player 0 leads with a club
         lead_card = sess.hands[0][0]
         sess.hands[0].remove(lead_card)
-        sess.current_trick.append((0, lead_card))
+        sess.trick_manager.current_trick.append((0, lead_card))
         sess.turn = 1
 
         # Connect two clients
