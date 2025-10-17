@@ -107,10 +107,12 @@ async def test_save_session_with_game_state(
     # Start a round
     await sample_session.start_round()
     assert sample_session.state == SessionState.BIDDING
+    # With dealer=0, leader=(0-1)%4=3 (clockwise direction)
+    assert sample_session.turn == 3
 
-    # Place some bids
-    await sample_session.place_bid(0, BidCmd(value=15))
-    await sample_session.place_bid(1, BidCmd(value=16))
+    # Place some bids in clockwise order: 3, 2
+    await sample_session.place_bid(3, BidCmd(value=15))
+    await sample_session.place_bid(2, BidCmd(value=16))
 
     # Save session
     success = await persistence.save_session(sample_session, snapshot_reason="mid_game")
@@ -120,8 +122,8 @@ async def test_save_session_with_game_state(
     loaded_session = await persistence.load_session(sample_session.id)
     assert loaded_session is not None
     assert loaded_session.state == SessionState.BIDDING
-    assert loaded_session.bids[0] == 15
-    assert loaded_session.bids[1] == 16
+    assert loaded_session.bids[3] == 15
+    assert loaded_session.bids[2] == 16
     assert loaded_session.current_highest == 16
     assert len(loaded_session.hands[0]) > 0  # Cards were dealt
 
@@ -138,7 +140,9 @@ async def test_update_existing_session(
 
     # Modify session
     await sample_session.start_round()
-    await sample_session.place_bid(0, BidCmd(value=15))
+    # With dealer=0, leader=(0-1)%4=3 (clockwise direction)
+    assert sample_session.turn == 3
+    await sample_session.place_bid(3, BidCmd(value=15))
 
     # Save updated state
     success = await persistence.save_session(sample_session, snapshot_reason="updated")
@@ -148,7 +152,7 @@ async def test_update_existing_session(
     loaded_session = await persistence.load_session(sample_session.id)
     assert loaded_session is not None
     assert loaded_session.state == SessionState.BIDDING
-    assert loaded_session.bids[0] == 15
+    assert loaded_session.bids[3] == 15
 
 
 @pytest.mark.asyncio
@@ -231,8 +235,8 @@ async def test_multiple_snapshots(
     await sample_session.start_round()
     await persistence.save_session(sample_session, snapshot_reason="after_deal")
 
-    # Place bids and save again
-    await sample_session.place_bid(0, BidCmd(value=15))
+    # Place bids and save again (seat 3 is first to bid with clockwise direction)
+    await sample_session.place_bid(3, BidCmd(value=15))
     await persistence.save_session(sample_session, snapshot_reason="after_bid")
 
     # Get all snapshots

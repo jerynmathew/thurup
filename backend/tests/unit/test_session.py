@@ -14,25 +14,27 @@ async def test_start_and_basic_flow():
         assert seat in range(4)
 
     await sess.start_round(dealer=0)
+    # With dealer=0, leader=(0-1)%4=3 (clockwise direction)
+    assert sess.turn == 3
 
     # ensure hands dealt (8 cards each for 28-mode)
     assert all(len(h) == 8 for h in sess.hands)
 
-    # place a valid bid
-    ok, msg = await sess.place_bid(0, BidCmd(value=16))
+    # place a valid bid (seat 3 is first to bid)
+    ok, msg = await sess.place_bid(3, BidCmd(value=16))
     assert ok
 
-    # other players pass
-    ok1, _ = await sess.place_bid(1, BidCmd(value=None))
-    ok2, _ = await sess.place_bid(2, BidCmd(value=None))
-    ok3, _ = await sess.place_bid(3, BidCmd(value=None))
+    # other players pass in clockwise order: 2, 1, 0
+    ok1, _ = await sess.place_bid(2, BidCmd(value=None))
+    ok2, _ = await sess.place_bid(1, BidCmd(value=None))
+    ok3, _ = await sess.place_bid(0, BidCmd(value=None))
     assert ok1 and ok2 and ok3
 
     # after all bids, should be in choose_trump state
     assert sess.state.value == "choose_trump"
 
-    # bid winner chooses trump
-    ok2, m2 = await sess.choose_trump(0, ChooseTrumpCmd(suit="♠"))
+    # bid winner (seat 3) chooses trump
+    ok2, m2 = await sess.choose_trump(3, ChooseTrumpCmd(suit="♠"))
     assert ok2
 
     # play a legal card for the leader

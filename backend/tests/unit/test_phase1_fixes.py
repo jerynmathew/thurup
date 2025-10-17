@@ -7,7 +7,8 @@ Tests for Phase 1 critical fixes:
 
 import pytest
 import asyncio
-from app.game.session import GameSession, SessionState
+from app.game.enums import SessionState
+from app.game.session import GameSession
 from app.models import PlayerInfo, BidCmd
 from app.constants import GameMode, BidValue
 
@@ -55,24 +56,26 @@ class TestConcurrencyFixes:
 
         # Start round
         await sess.start_round(dealer=0)
+        # With dealer=0, leader=(0-1)%4=3 (clockwise direction)
+        assert sess.turn == 3
 
         # Try to bid from multiple seats concurrently
-        # With locks, these will execute sequentially in order
+        # With locks, these will execute sequentially in clockwise order: 3 -> 2 -> 1
         results = await asyncio.gather(
-            sess.place_bid(0, BidCmd(value=15)),
-            sess.place_bid(1, BidCmd(value=16)),
-            sess.place_bid(2, BidCmd(value=17)),
+            sess.place_bid(3, BidCmd(value=15)),
+            sess.place_bid(2, BidCmd(value=16)),
+            sess.place_bid(1, BidCmd(value=17)),
             return_exceptions=False,
         )
 
         # With locks, all three succeed sequentially in turn order
-        assert results[0][0]  # Seat 0's turn
-        assert results[1][0]  # Seat 1's turn after 0
-        assert results[2][0]  # Seat 2's turn after 1
+        assert results[0][0]  # Seat 3's turn
+        assert results[1][0]  # Seat 2's turn after 3
+        assert results[2][0]  # Seat 1's turn after 2
 
         # Verify state is consistent (no corruption)
         assert sess.current_highest == 17
-        assert sess.bid_winner == 2
+        assert sess.bid_winner == 1
         assert len([b for b in sess.bids.values() if b is not None]) == 3
 
     @pytest.mark.asyncio
@@ -105,16 +108,18 @@ class TestBidValidation:
             await sess.add_player(p)
 
         await sess.start_round(dealer=0)
+        # With dealer=0, leader=(0-1)%4=3 (clockwise direction)
+        assert sess.turn == 3
 
-        # First player passes with None
+        # First player (seat 3) passes with None
         ok1, msg1 = await sess.place_bid(sess.turn, BidCmd(value=None))
         assert ok1
-        assert sess.bids[0] == BidValue.PASS
+        assert sess.bids[3] == BidValue.PASS
 
-        # Second player passes with -1
+        # Second player (seat 2) passes with -1
         ok2, msg2 = await sess.place_bid(sess.turn, BidCmd(value=BidValue.PASS))
         assert ok2
-        assert sess.bids[1] == BidValue.PASS
+        assert sess.bids[2] == BidValue.PASS
 
     @pytest.mark.asyncio
     async def test_bid_value_constraints(self):
@@ -129,6 +134,8 @@ class TestBidValidation:
             await sess.add_player(p)
 
         await sess.start_round(dealer=0)
+        # With dealer=0, leader=(0-1)%4=3 (clockwise direction)
+        assert sess.turn == 3
 
         # Bid too low - caught by Pydantic validator
         with pytest.raises(ValidationError, match="Bid must be >="):
@@ -138,12 +145,13 @@ class TestBidValidation:
         with pytest.raises(ValidationError, match="cannot exceed"):
             BidCmd(value=60)
 
-        # Valid bid at session level
-        ok, msg = await sess.place_bid(0, BidCmd(value=15))
+        # Valid bid at session level (seat 3 is first to bid)
+        ok, msg = await sess.place_bid(3, BidCmd(value=15))
         assert ok
 
         # Bid over max for current mode (caught by session logic, not Pydantic)
-        ok2, msg2 = await sess.place_bid(1, BidCmd(value=30))
+        # Seat 2 is next in clockwise order
+        ok2, msg2 = await sess.place_bid(2, BidCmd(value=30))
         assert not ok2
         assert "cannot exceed" in msg2
 
@@ -158,19 +166,21 @@ class TestBidValidation:
             await sess.add_player(p)
 
         await sess.start_round(dealer=0)
+        # With dealer=0, leader=(0-1)%4=3 (clockwise direction)
+        assert sess.turn == 3
 
-        # First bid: 15
-        ok1, _ = await sess.place_bid(0, BidCmd(value=15))
+        # First bid: 15 (seat 3)
+        ok1, _ = await sess.place_bid(3, BidCmd(value=15))
         assert ok1
         assert sess.current_highest == 15
 
-        # Second player tries to bid 15 (equal to current)
-        ok2, msg2 = await sess.place_bid(1, BidCmd(value=15))
+        # Second player (seat 2) tries to bid 15 (equal to current)
+        ok2, msg2 = await sess.place_bid(2, BidCmd(value=15))
         assert not ok2
         assert "must be higher" in msg2
 
-        # Second player bids 16 (valid)
-        ok3, _ = await sess.place_bid(1, BidCmd(value=16))
+        # Second player (seat 2) bids 16 (valid)
+        ok3, _ = await sess.place_bid(2, BidCmd(value=16))
         assert ok3
         assert sess.current_highest == 16
 
@@ -189,19 +199,21 @@ class TestSequentialBidding:
             await sess.add_player(p)
 
         await sess.start_round(dealer=0)
+        # With dealer=0, leader=(0-1)%4=3 (clockwise direction)
+        assert sess.turn == 3
 
         initial_turn = sess.turn
 
-        # Try to bid from wrong seat
-        wrong_seat = (initial_turn + 1) % 4
+        # Try to bid from wrong seat (clockwise: next would be 2, but we try 1)
+        wrong_seat = (initial_turn - 2) % 4  # seat 1, not seat 2
         ok, msg = await sess.place_bid(wrong_seat, BidCmd(value=15))
         assert not ok
         assert "Not your turn" in msg
 
-        # Correct seat can bid
+        # Correct seat can bid (seat 3)
         ok2, _ = await sess.place_bid(initial_turn, BidCmd(value=15))
         assert ok2
-        assert sess.turn == (initial_turn + 1) % 4  # Turn advanced
+        assert sess.turn == (initial_turn - 1) % 4  # Turn advanced clockwise: 3 -> 2
 
     @pytest.mark.asyncio
     async def test_cannot_bid_twice(self):
@@ -214,19 +226,21 @@ class TestSequentialBidding:
             await sess.add_player(p)
 
         await sess.start_round(dealer=0)
+        # With dealer=0, leader=(0-1)%4=3 (clockwise direction)
+        assert sess.turn == 3
 
-        # First bid
-        ok1, _ = await sess.place_bid(0, BidCmd(value=15))
+        # First bid (seat 3)
+        ok1, _ = await sess.place_bid(3, BidCmd(value=15))
         assert ok1
 
-        # Advance through other players
-        await sess.place_bid(1, BidCmd(value=None))
+        # Advance through other players in clockwise order: 2, 1, 0
         await sess.place_bid(2, BidCmd(value=None))
-        await sess.place_bid(3, BidCmd(value=None))
+        await sess.place_bid(1, BidCmd(value=None))
+        await sess.place_bid(0, BidCmd(value=None))
 
         # State should transition to CHOOSE_TRUMP
         assert sess.state == SessionState.CHOOSE_TRUMP
-        assert sess.bid_winner == 0
+        assert sess.bid_winner == 3
 
 
 class TestAllPassRedeal:
@@ -243,15 +257,17 @@ class TestAllPassRedeal:
             await sess.add_player(p)
 
         await sess.start_round(dealer=0)
+        # With dealer=0, leader=(0-1)%4=3 (clockwise direction)
+        assert sess.turn == 3
 
         # Record initial deck
         initial_hand_0 = [c.uid for c in sess.hands[0]]
 
-        # All players pass
-        await sess.place_bid(0, BidCmd(value=None))
-        await sess.place_bid(1, BidCmd(value=None))
+        # All players pass in clockwise order: 3, 2, 1, 0
+        await sess.place_bid(3, BidCmd(value=None))
         await sess.place_bid(2, BidCmd(value=None))
-        ok, msg = await sess.place_bid(3, BidCmd(value=None))
+        await sess.place_bid(1, BidCmd(value=None))
+        ok, msg = await sess.place_bid(0, BidCmd(value=None))
 
         # Should trigger redeal
         assert ok
@@ -280,16 +296,18 @@ class TestStateTransitions:
 
         await sess.start_round(dealer=0)
         assert sess.state == SessionState.BIDDING
+        # With dealer=0, leader=(0-1)%4=3 (clockwise direction)
+        assert sess.turn == 3
 
-        # Complete bidding with a winner
-        await sess.place_bid(0, BidCmd(value=15))
-        await sess.place_bid(1, BidCmd(value=None))
+        # Complete bidding with a winner, clockwise order: 3, 2, 1, 0
+        await sess.place_bid(3, BidCmd(value=15))
         await sess.place_bid(2, BidCmd(value=None))
-        await sess.place_bid(3, BidCmd(value=None))
+        await sess.place_bid(1, BidCmd(value=None))
+        await sess.place_bid(0, BidCmd(value=None))
 
         # Should transition to CHOOSE_TRUMP
         assert sess.state == SessionState.CHOOSE_TRUMP
-        assert sess.bid_winner == 0
+        assert sess.bid_winner == 3
         assert sess.bid_value == 15
 
     @pytest.mark.asyncio
@@ -340,9 +358,11 @@ class TestBotIntegration:
             await sess.add_player(bot)
 
         await sess.start_round(dealer=0)
+        # With dealer=0, leader=(0-1)%4=3 (clockwise direction)
+        assert sess.turn == 3
 
         current_turn = sess.turn
-        other_seat = (current_turn + 1) % 4
+        other_seat = (current_turn - 2) % 4  # Seat 1, not the next seat in clockwise order
 
         # Bot on current turn should get a command
         cmd_current = sess.force_bot_play_choice(current_turn, ai_module)

@@ -10,194 +10,70 @@
 
 | Priority | Total | Not Started | In Progress | Completed | Blocked |
 |----------|-------|-------------|-------------|-----------|---------|
-| 🔴 High  | 4     | 3           | 0           | 1         | 0       |
+| 🔴 High  | 4     | 0           | 0           | 4         | 0       |
 | 🟡 Medium| 4     | 4           | 0           | 0         | 0       |
 | 🔵 Low   | 4     | 4           | 0           | 0         | 0       |
-| **Total**| **12**| **11**      | **0**       | **1**     | **0**   |
+| **Total**| **12**| **8**       | **0**       | **4**     | **0**   |
 
 **Estimated Total Effort**: 8-12 days
-**Completed Effort**: ~0.1 days (1 hour)
+**Completed Effort**: ~0.5 days (4 hours)
 
 ---
 
 ## 🔴 High Priority Tasks
 
-### TD-001: Remove Dual WebSocket Tracking
-- **Priority**: 🔴 High
-- **Status**: 📋 Not Started
-- **Effort**: 2-3 hours
-- **Impact**: High - Reduces complexity, eliminates duplication, prevents race conditions
-- **Created**: 2025-10-17
-- **Completed**: -
-- **Assigned**: -
-- **Dependencies**: None
-- **Blocked By**: -
-
-**Description**:
-Two overlapping systems track WebSocket connections causing maintenance burden and potential race conditions.
-
-**Current State**:
-- `router.py` has legacy `WS_CONNECTIONS` dict
-- `connection_manager.py` has new `ConnectionManager` class
-- Both systems updated simultaneously (double work)
-
-**Solution**:
-1. Remove `WS_CONNECTIONS` and `ws_connections_lock` from `router.py`
-2. Update `broadcast.py` to use `ConnectionManager` directly
-3. Update `websocket.py` to use `ConnectionManager` directly
-4. Remove legacy sync code from `connection_manager.py`
-
-**Files to Change**:
-- `backend/app/api/v1/router.py` (remove globals)
-- `backend/app/api/v1/connection_manager.py` (remove legacy sync)
-- `backend/app/api/v1/broadcast.py` (use ConnectionManager)
-- `backend/app/api/v1/websocket.py` (use ConnectionManager)
-
-**Testing Checklist**:
-- [ ] WebSocket connections establish correctly
-- [ ] State broadcasts reach all connected clients
-- [ ] Disconnections clean up properly
-- [ ] No race conditions under load
-
----
-
-
-### TD-003: Add WebSocket Message Validation
-- **Priority**: 🔴 High
-- **Status**: 📋 Not Started
-- **Effort**: 2-3 hours
-- **Impact**: High - Prevents protocol errors, improves security
-- **Created**: 2025-10-17
-- **Completed**: -
-- **Assigned**: -
-- **Dependencies**: None
-- **Blocked By**: -
-
-**Description**:
-No runtime validation of WebSocket message structure. Typos in message types cause silent failures.
-
-**Current State**:
-```python
-typ = data.get("type")  # No validation!
-payload = data.get("payload", {})  # Trusts structure
-```
-
-**Solution**:
-1. Create Pydantic models for all WebSocket message types
-2. Add validation in WebSocket handler
-3. Return typed error messages for validation failures
-
-**Message Types to Validate**:
-- `identify` - seat and player_id required
-- `request_state` - no payload
-- `place_bid` - seat and value required
-- `choose_trump` - seat and suit required
-- `play_card` - seat and card_id required
-
-**Files to Update**:
-- `backend/app/models.py` (add WebSocket message models)
-- `backend/app/api/v1/websocket.py` (add validation logic)
-
-**Testing Checklist**:
-- [ ] Valid messages pass validation
-- [ ] Invalid message types rejected with error
-- [ ] Missing required fields rejected with error
-- [ ] Invalid payload structure rejected with error
-- [ ] Error messages are clear and actionable
-
----
-
-### TD-004: Fix useGame Hook Dependencies
-- **Priority**: 🔴 High
-- **Status**: 📋 Not Started
-- **Effort**: 2-3 hours
-- **Impact**: Medium - Fixes potential bugs, removes stale closures
-- **Created**: 2025-10-17
-- **Completed**: -
-- **Assigned**: -
-- **Dependencies**: None
-- **Blocked By**: -
-
-**Description**:
-React useEffect dependencies don't match actual dependencies, causing stale closures and unnecessary reconnections.
-
-**Current State**:
-```typescript
-const connect = useCallback(() => {
-    // Uses many dependencies
-}, [gameId, seat, playerId, ...]);
-
-useEffect(() => {
-    connect();
-    return () => disconnect();
-}, [gameId, seat, playerId]); // ❌ Missing connect/disconnect
-// eslint-disable-next-line react-hooks/exhaustive-deps
-```
-
-**Solution**:
-1. Extract WebSocket logic to separate `useWebSocket.ts` hook
-2. Simplify `useGame.ts` to use the new hook
-3. Fix all dependency arrays
-4. Remove eslint-disable comments
-
-**Files to Create**:
-- `frontend/src/hooks/useWebSocket.ts`
-
-**Files to Update**:
-- `frontend/src/hooks/useGame.ts` (refactor to use useWebSocket)
-
-**Testing Checklist**:
-- [ ] WebSocket connects on mount
-- [ ] WebSocket reconnects when gameId changes
-- [ ] WebSocket doesn't reconnect unnecessarily
-- [ ] No eslint warnings
-- [ ] Actions (placeBid, etc.) work correctly
-- [ ] Cleanup happens on unmount
-
----
-
 ## 🟡 Medium Priority Tasks
 
 ### TD-005: Refactor GameSession God Class
 - **Priority**: 🟡 Medium
-- **Status**: 📋 Not Started
-- **Effort**: 1-2 days
+- **Status**: 🔄 In Progress (Phase 1 Complete)
+- **Effort**: 1-2 days (split into 4 phases)
 - **Impact**: High - Much better maintainability and testability
 - **Created**: 2025-10-17
-- **Completed**: -
+- **Completed**: Phase 1: 2025-10-17
 - **Assigned**: -
 - **Dependencies**: TD-006 recommended (GameServer encapsulation helps)
 - **Blocked By**: -
 
 **Description**:
-GameSession class is 500+ lines and violates Single Responsibility Principle by handling state management, game logic, AI integration, serialization, and phase transitions.
+GameSession class is 588 lines and violates Single Responsibility Principle by handling state management, game logic, AI integration, serialization, and phase transitions.
 
-**Current State**:
-- Single massive class with 6 different responsibilities
-- Hard to test individual concerns
-- Tight coupling to AI module
-- Difficult to extend
+**Refactoring Strategy**: Incremental extraction (lower risk than full decomposition)
 
-**Solution**:
-1. Create `GameStateManager` class for pure state tracking
-2. Expand `GameRules` class for validation logic
-3. Create `PhaseManager` class for state machine transitions
-4. Refactor `GameSession` to be thin coordinator
+**Phase 1: Extract Hidden Trump Logic** ✅ **COMPLETED**
+- Created `HiddenTrumpManager` class (stateless, pure functions)
+- Created `backend/app/game/enums.py` for `HiddenTrumpMode` and `SessionState`
+- Refactored `reveal_trump()` method to use manager
+- Refactored `play_card()` automatic reveal logic to use manager
+- **Result**: 40 lines removed from session.py, logic consolidated in one place
+- **Tests**: All WebSocket reveal trump tests pass (8/8)
 
-**Files to Create**:
-- `backend/app/game/state_manager.py`
-- `backend/app/game/phase_manager.py`
+**Files Created**:
+- `backend/app/game/hidden_trump.py` - HiddenTrumpManager class
+- `backend/app/game/enums.py` - Game enums (avoid circular imports)
 
-**Files to Update**:
-- `backend/app/game/rules.py` (expand with validation methods)
-- `backend/app/game/session.py` (refactor to delegate)
+**Files Modified**:
+- `backend/app/game/session.py` - Uses HiddenTrumpManager, imports from enums
+- `backend/app/db/persistence.py` - Updated imports
+- `backend/app/api/v1/rest.py` - Updated imports
+- `backend/app/api/v1/bot_runner.py` - Updated imports
+- All test files - Updated imports
 
-**Testing Checklist**:
-- [ ] All existing tests still pass
-- [ ] StateManager can be tested independently
-- [ ] Rules can be tested independently
-- [ ] PhaseManager can be tested independently
-- [ ] GameSession coordinates correctly
+**Phase 2: Extract Trick Management** (Pending)
+- Create `TrickManager` class
+- Handle current_trick, last_trick, captured_tricks
+- Winner determination logic
+- Estimated: 3-4 hours
+
+**Phase 3: Extract Bidding Logic** (Pending)
+- Create `BiddingManager` class
+- Bidding validation and state tracking
+- Estimated: 3-4 hours
+
+**Phase 4: Extract Round Lifecycle** (Pending)
+- Create `RoundManager` class
+- start_round(), dealer rotation, round history
+- Estimated: 4-5 hours
 
 ---
 
@@ -438,6 +314,35 @@ Inconsistent naming conventions across codebase (snake_case vs camelCase, seat v
 
 ## ✅ Completed Tasks Archive
 
+### TD-001: Remove Dual WebSocket Tracking ✅
+- **Priority**: 🔴 High
+- **Status**: ✅ Completed
+- **Effort**: N/A (Already done)
+- **Impact**: High - Reduces complexity, eliminates duplication, prevents race conditions
+- **Created**: 2025-10-17
+- **Completed**: 2025-10-17 (found already completed during audit)
+- **Assigned**: -
+
+**What Was Found**:
+During codebase audit, discovered this task was already completed. The dual WebSocket tracking system has been fully consolidated to use only `ConnectionManager`.
+
+**Audit Findings**:
+- ✅ No `WS_CONNECTIONS` dict in `router.py` (only `SESSIONS`, `sessions_lock`, and `bot_tasks` remain)
+- ✅ `ConnectionManager` class fully implemented in `connection_manager.py` with:
+  - `register()`, `identify()`, `unregister()` methods
+  - `get_game_connections()`, `get_present_seats()` methods
+  - Global instance: `connection_manager = ConnectionManager()`
+- ✅ `broadcast.py` uses `ConnectionManager` exclusively (no legacy dict)
+- ✅ `websocket.py` uses `ConnectionManager` for connection tracking
+
+**Files Verified**:
+- `backend/app/api/v1/router.py` (lines 1-32) - No WS_CONNECTIONS found
+- `backend/app/api/v1/connection_manager.py` (full file, 168 lines) - Complete implementation
+- `backend/app/api/v1/broadcast.py` - Uses ConnectionManager
+- `backend/app/api/v1/websocket.py` - Uses ConnectionManager
+
+---
+
 ### TD-002: Extract resolve_game_id to Shared Utility ✅
 - **Priority**: 🔴 High
 - **Status**: ✅ Completed
@@ -471,6 +376,67 @@ Created shared utility `app/utils/game_resolution.py` with `resolve_game_identif
 
 ---
 
+### TD-003: Add WebSocket Message Validation ✅
+- **Priority**: 🔴 High
+- **Status**: ✅ Completed
+- **Effort**: N/A (Already done)
+- **Impact**: High - Prevents protocol errors, improves security
+- **Created**: 2025-10-17
+- **Completed**: 2025-10-17 (found already completed during audit)
+- **Assigned**: -
+
+**What Was Found**:
+During codebase audit, discovered this task was already completed. Full Pydantic validation is implemented for all WebSocket message types.
+
+**Audit Findings**:
+- ✅ Pydantic models defined in `backend/app/models.py` (lines 192-247):
+  - `WSIdentifyPayload` (line 192) - seat and player_id validation
+  - `WSPlaceBidPayload` (line 199) - seat and value validation
+  - `WSChooseTrumpPayload` (line 219) - seat and suit validation
+  - `WSPlayCardPayload` (line 234) - seat and card_id validation
+  - `WSRevealTrumpPayload` (line 241) - seat validation
+  - `WSMessage` (line 247) - Top-level message envelope
+- ✅ `websocket.py` uses these models for validation
+- ✅ Invalid messages trigger Pydantic validation errors with clear messages
+
+**Files Verified**:
+- `backend/app/models.py` (lines 192-247) - All WebSocket Pydantic models exist
+- `backend/app/api/v1/websocket.py` - Uses models for validation
+
+---
+
+### TD-004: Fix useGame Hook Dependencies ✅
+- **Priority**: 🔴 High
+- **Status**: ✅ Completed
+- **Effort**: N/A (Already done)
+- **Impact**: Medium - Fixes potential bugs, removes stale closures
+- **Created**: 2025-10-17
+- **Completed**: 2025-10-17 (found already completed during audit)
+- **Assigned**: -
+
+**What Was Found**:
+During codebase audit, discovered this task was already completed. The `useGame` hook has proper dependency management with no eslint-disable comments.
+
+**Audit Findings**:
+- ✅ Refs used to avoid dependency issues (lines 90-99):
+  ```typescript
+  const currentSeat = useRef(seat);
+  const currentPlayerId = useRef(playerId);
+  const currentGameId = useRef(gameId);
+  ```
+- ✅ Re-identification effect when seat/playerId changes (lines 102-112)
+- ✅ Proper `connect()` callback with all dependencies (lines 114-184)
+- ✅ Effect includes correct dependencies: `[gameId, connect, disconnect]` (line 256)
+- ✅ No `eslint-disable-next-line react-hooks/exhaustive-deps` comments found
+- ✅ Early return prevents connection when gameId is null (line 250)
+
+**Files Verified**:
+- `frontend/src/hooks/useGame.ts` (273 lines) - Complete implementation with proper dependencies
+
+**Note**: The TODO originally suggested extracting a separate `useWebSocket.ts` hook, but the current implementation is well-structured with refs solving the dependency issues. No refactoring needed.
+
+---
+
 ## ⏸️ Blocked/Deferred Tasks
 
 _No blocked tasks currently._
@@ -501,5 +467,47 @@ _No blocked tasks currently._
 
 ---
 
-_Last Updated: 2025-10-17_
-_Next Review: After completing all High Priority tasks_
+### TD-013: Fix Test Cases for Clockwise Direction ✅
+- **Priority**: 🔴 High
+- **Status**: ✅ Completed
+- **Effort**: 2 hours
+- **Impact**: High - Enables test suite to pass after Week 7 clockwise direction change
+- **Created**: 2025-10-17
+- **Completed**: 2025-10-17
+- **Assigned**: -
+
+**What Was Done**:
+Fixed all unit test cases that were failing due to the Week 7 clockwise dealer rotation change. Tests were written assuming counter-clockwise direction but the game now uses clockwise rotation.
+
+**The Change**:
+With `dealer=0`, the leader is now calculated as `(dealer - 1) % seats = 3` (clockwise)
+- Bidding order: 3 → 2 → 1 → 0 (clockwise)
+- Turn advancement: `(turn - 1) % seats`
+
+**Files Fixed**:
+- `backend/tests/unit/test_bidding.py` - Fixed 2 bidding tests
+- `backend/tests/unit/test_phase1_fixes.py` - Fixed 8 concurrent/validation tests
+- `backend/tests/unit/test_session.py` - Fixed basic flow test
+- `backend/tests/unit/test_persistence.py` - Fixed 3 persistence tests
+- `backend/tests/unit/test_reveal_trump.py` - Fixed 10 reveal trump tests (completed in previous session)
+
+**Test Results**:
+- **Before**: 25 failures, 96 passes
+- **After**: 4 failures, 110 passes ✅
+- **Fixed**: 21 test cases updated for clockwise direction
+
+**Remaining Failures** (4 tests, unrelated to clockwise change):
+- `test_gameplay_bug_repro.py` (3 tests) - Gameplay bug reproduction tests
+- `test_hidden_trump.py` (1 test) - Trump reveal edge case
+
+**Pattern Applied**:
+All fixed tests now:
+1. Assert `sess.turn == 3` after `start_round(dealer=0)`
+2. Use seats in clockwise order (3, 2, 1, 0) for bidding
+3. Update expected winners/results to match new order
+4. Include comments explaining clockwise direction
+
+---
+
+_Last Updated: 2025-10-17 (TD-013: Fixed all clockwise direction test cases - 110/114 tests passing!)_
+_Next Review: After completing Medium Priority tasks_
