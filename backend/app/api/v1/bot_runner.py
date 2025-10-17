@@ -119,7 +119,7 @@ async def _handle_bidding_bot(game_id: str, sess, delay: float) -> bool:
     p = sess.players.get(seat)
 
     # If seat is bot and still waiting to act (None), ask it
-    if not (p and getattr(p, "is_bot", False) and sess.bids.get(seat) is None):
+    if not (p and getattr(p, "is_bot", False) and sess.bidding_manager.bids.get(seat) is None):
         return False
 
     try:
@@ -155,7 +155,7 @@ async def _handle_bidding_bot(game_id: str, sess, delay: float) -> bool:
 
 async def _handle_choose_trump_bot(game_id: str, sess, delay: float) -> bool:
     """Handle bot action in CHOOSE_TRUMP phase. Returns True if action was taken."""
-    seat = sess.bid_winner
+    seat = sess.bidding_manager.bid_winner
     if seat is None:
         # no numeric bids; nothing to do
         return False
