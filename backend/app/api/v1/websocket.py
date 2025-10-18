@@ -328,15 +328,28 @@ async def _handle_play_card(websocket: WebSocket, sess, payload: WSPlayCardPaylo
                 "payload": {"action": "play_card", "message": msg},
             }
         )
+        return
+
+    # Check if trick is complete
+    trick_complete = msg == "TRICK_COMPLETE"
+
+    if trick_complete:
+        # Send acknowledgment
+        await websocket.send_json(
+            {"type": "action_ok", "payload": {"action": "play_card", "message": "Card played - trick complete"}}
+        )
+
+        # Complete the trick immediately (no backend delay - frontend handles UX timing)
+        try:
+            winner, pts = await sess.complete_current_trick()
+            logger.info("trick_completed", game_id=sess.id, winner=winner, points=pts)
+        except Exception as e:
+            logger.error("trick_completion_failed", game_id=sess.id, error=str(e))
+            return
     else:
         await websocket.send_json(
             {"type": "action_ok", "payload": {"action": "play_card", "message": msg}}
         )
-
-        # If trick was completed (detected by "Trick complete" in message),
-        # add a 2-second delay so players can see all the cards played
-        if "Trick complete" in msg:
-            await asyncio.sleep(2.0)
 
 
 async def _handle_reveal_trump(websocket: WebSocket, sess, payload: WSRevealTrumpPayload):

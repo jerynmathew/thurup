@@ -3,7 +3,7 @@
  * Displays all players around a central table with the current trick.
  */
 
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Card as CardType, PlayerInfo, GameState } from '../../types';
 import { Badge } from '../ui';
 import { PlayingCard } from './PlayingCard';
@@ -14,7 +14,35 @@ interface GameBoardProps {
 }
 
 export function GameBoard({ gameState, mySeat }: GameBoardProps) {
-  const { seats, players, dealer, turn, leader, trump, current_trick, bid_winner } = gameState;
+  const { seats, players, dealer, turn, leader, trump, current_trick, last_trick, bid_winner } = gameState;
+
+  // Local state to show last_trick cards temporarily
+  const [displayTrick, setDisplayTrick] = useState<Record<number, CardType> | null>(null);
+  const [showingLastTrick, setShowingLastTrick] = useState(false);
+
+  // When last_trick changes and current_trick is empty, show last_trick for 2.5 seconds
+  useEffect(() => {
+    const currentTrickEmpty = !current_trick || Object.keys(current_trick).length === 0;
+    const hasLastTrick = last_trick && last_trick.cards && Object.keys(last_trick.cards).length > 0;
+
+    if (currentTrickEmpty && hasLastTrick && !showingLastTrick) {
+      // Show last_trick cards
+      setDisplayTrick(last_trick.cards);
+      setShowingLastTrick(true);
+
+      // Clear after 2.5 seconds
+      const timer = setTimeout(() => {
+        setDisplayTrick(null);
+        setShowingLastTrick(false);
+      }, 2500);
+
+      return () => clearTimeout(timer);
+    } else if (!currentTrickEmpty && current_trick) {
+      // Current trick is being played - show it
+      setDisplayTrick(current_trick);
+      setShowingLastTrick(false);
+    }
+  }, [current_trick, last_trick, showingLastTrick]);
 
   // Calculate player positions in circular layout
   const playerPositions = useMemo(() => {
@@ -47,12 +75,12 @@ export function GameBoard({ gameState, mySeat }: GameBoardProps) {
         position,
         isDealer: seatNumber === dealer,
         isTurn: seatNumber === turn,
-        trickCard: current_trick?.[seatNumber],
+        trickCard: displayTrick?.[seatNumber],
       });
     }
 
     return positions;
-  }, [gameState, mySeat, seats, players, dealer, turn, current_trick]);
+  }, [gameState, mySeat, seats, players, dealer, turn, displayTrick]);
 
   return (
     <div className="relative w-full h-full flex items-center justify-center p-4">

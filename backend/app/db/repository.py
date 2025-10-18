@@ -66,13 +66,6 @@ class GameRepository:
         )
         return result.scalar_one_or_none()
 
-    async def get_all_short_codes(self) -> List[str]:
-        """Get all existing short codes (for collision avoidance)."""
-        result = await self.session.execute(
-            select(GameModel.short_code)
-        )
-        return [row[0] for row in result.all()]
-
     async def update_game_state(
         self, game_id: str, state: str, phase_data: Optional[dict] = None
     ) -> bool:
@@ -270,32 +263,6 @@ class SnapshotRepository:
             .limit(limit)
         )
         return list(result.scalars().all())
-
-    async def cleanup_old_snapshots(self, game_id: str, keep_count: int = 5) -> int:
-        """Keep only the N most recent snapshots for a game."""
-        # Get snapshots to keep
-        keep_snapshots = await self.session.execute(
-            select(GameStateSnapshotModel.id)
-            .where(GameStateSnapshotModel.game_id == game_id)
-            .order_by(GameStateSnapshotModel.created_at.desc())
-            .limit(keep_count)
-        )
-        keep_ids = [row[0] for row in keep_snapshots.all()]
-
-        if not keep_ids:
-            return 0
-
-        # Delete old snapshots
-        result = await self.session.execute(
-            delete(GameStateSnapshotModel).where(
-                GameStateSnapshotModel.game_id == game_id,
-                GameStateSnapshotModel.id.not_in(keep_ids),
-            )
-        )
-        deleted = result.rowcount
-        if deleted > 0:
-            logger.debug("old_snapshots_cleaned", game_id=game_id, deleted=deleted)
-        return deleted
 
 
 class RoundHistoryRepository:

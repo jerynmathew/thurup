@@ -3,10 +3,10 @@
  * Provides a complete interface for game interactions.
  */
 
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { useGameStore } from '../stores';
 import { getWebSocketUrl } from '../api/client';
-import type { ClientMessage, ServerMessage, Suit } from '../types';
+import type { ClientMessage, ServerMessage, Suit, GameState } from '../types';
 import { toast } from '../stores/uiStore';
 
 interface UseGameOptions {
@@ -23,6 +23,8 @@ export function useGame({ gameId, seat, playerId, onConnect, onDisconnect, onErr
   const reconnectTimer = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttempts = useRef(0);
   const reconnectDelay = useRef(1000);
+
+  const previousStateRef = useRef<GameState | null>(null);
 
   const MAX_RECONNECT_ATTEMPTS = 5;
   const MAX_RECONNECT_DELAY = 30000;
@@ -50,7 +52,7 @@ export function useGame({ gameId, seat, playerId, onConnect, onDisconnect, onErr
     return false;
   }, []);
 
-  // Handle incoming WebSocket messages
+  // Handle incoming WebSocket messages - update state immediately
   const handleMessage = useCallback(
     (event: MessageEvent) => {
       try {
@@ -58,7 +60,10 @@ export function useGame({ gameId, seat, playerId, onConnect, onDisconnect, onErr
 
         switch (message.type) {
           case 'state_snapshot':
-            updateGameState(message.payload);
+            const newState = message.payload as GameState;
+            // Always update state immediately - no queueing
+            updateGameState(newState);
+            previousStateRef.current = newState;
             break;
 
           case 'action_ok':

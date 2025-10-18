@@ -15,6 +15,9 @@ async def broadcast_state(game_id: str):
 
     Sends per-socket owner_hand if the socket has identified with a seat.
     Handles disconnected sockets gracefully by removing them from the connection pool.
+
+    Performance optimization: Pre-serializes all player hands once to avoid
+    redundant serialization for each connection.
     """
     sess = SESSIONS.get(game_id)
     if not sess:
@@ -26,6 +29,10 @@ async def broadcast_state(game_id: str):
     connections = connection_manager.get_game_connections(game_id)
     if not connections:
         return
+
+    # Performance optimization: Pre-serialize all hands once
+    # This avoids calling get_hand_for() N times (once per connection)
+    hands_cache = {seat: sess.get_hand_for(seat) for seat in range(sess.seats)}
 
     # Send messages to all connections
     remove = []
@@ -44,11 +51,12 @@ async def broadcast_state(game_id: str):
                 will_send_hand=seat is not None
             )
 
-            payload = dict(base)
+            # Use dict unpacking for faster shallow copy
+            payload = {**base}
             # attach owner_hand only for that socket if seat is known
             if seat is not None:
-                # send the player's actual hand (server-authoritative)
-                payload["owner_hand"] = sess.get_hand_for(seat)
+                # Use pre-serialized hand from cache (no redundant serialization)
+                payload["owner_hand"] = hands_cache[seat]
                 logger.debug(
                     "sending_hand_to_player",
                     game_id=game_id,

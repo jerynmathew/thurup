@@ -52,6 +52,22 @@ class GameConfig:
     COMPLETED_GAME_RETENTION_HOURS = 24
 
 
+class GameTiming:
+    """Game timing constants (in seconds)."""
+
+    # Trick view delay - time to view completed trick before clearing
+    # This allows all players (especially humans) to see who won the trick
+    # Configurable via TRICK_VIEW_DELAY environment variable
+    @staticmethod
+    def get_trick_view_delay() -> float:
+        """Get trick view delay from environment or use default."""
+        import os
+        try:
+            return float(os.getenv("TRICK_VIEW_DELAY", "2.5"))
+        except ValueError:
+            return 2.5
+
+
 # ============================================================================
 # Bot Configuration
 # ============================================================================
