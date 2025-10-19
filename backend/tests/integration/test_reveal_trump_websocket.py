@@ -7,8 +7,8 @@ Tests the full WebSocket flow for manual trump reveal.
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.v1.router import SESSIONS
 from app.constants import Suit
+from app.core.game_server import get_game_server
 from app.game.enums import SessionState
 from app.game.session import GameSession
 from app.main import app
@@ -69,8 +69,13 @@ def setup_game():
         ],
     ]
 
-    SESSIONS[game_id] = sess
-    return game_id, sess
+    server = get_game_server()
+    server.add_session(game_id, sess)
+
+    yield game_id, sess
+
+    # Cleanup
+    server.remove_session(game_id)
 
 
 def collect_ws_messages_until(websocket, expected_types, max_messages=10, stop_condition=None):

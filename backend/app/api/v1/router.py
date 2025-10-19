@@ -1,27 +1,13 @@
 """
-Main router and shared state for API v1.
+Main router for API v1.
 
-Centralizes the session store, websocket connections, and locks.
+All global state has been migrated to GameServer (see app/core/game_server.py).
 """
 
-import asyncio
-from typing import Dict, Optional
-
-from fastapi import APIRouter, WebSocket
-
-from app.game.session import GameSession
+from fastapi import APIRouter
 
 # Create the main router
 router = APIRouter(prefix="/api/v1")
-
-# In-memory sessions
-SESSIONS: Dict[str, GameSession] = {}
-
-# Locks for thread-safe access to shared state
-sessions_lock = asyncio.Lock()
-
-# Track running bot tasks to prevent duplicates
-bot_tasks: Dict[str, asyncio.Task] = {}  # game_id -> task
 
 
 # Import and register sub-routers

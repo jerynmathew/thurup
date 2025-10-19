@@ -18,8 +18,9 @@ from app.api.v1.bot_runner import schedule_bot_runner
 from app.api.v1.broadcast import broadcast_state
 from app.api.v1.connection_manager import connection_manager
 from app.api.v1.persistence_integration import load_game_from_db
-from app.api.v1.router import SESSIONS, router, sessions_lock
+from app.api.v1.router import router
 from app.constants import GameConfig, GameMode
+from app.core.game_server import get_game_server
 from app.db.config import get_db
 from app.db.repository import GameRepository
 from app.game.session import GameSession
@@ -60,22 +61,25 @@ async def ws_game(websocket: WebSocket, game_id_or_code: str):
     """
     await websocket.accept()
 
+    server = get_game_server()
+
     # Resolve short code to actual game_id
-    game_id = await resolve_game_identifier(game_id_or_code, SESSIONS, raise_on_not_found=False)
+    game_id = await resolve_game_identifier(game_id_or_code, server.get_all_sessions(), raise_on_not_found=False)
 
     # Safely check and create/load session if needed
-    async with sessions_lock:
-        if game_id not in SESSIONS:
+    async with server.lock():
+        if not server.has_session(game_id):
             # Try to load from database first
             sess = await load_game_from_db(game_id)
             if sess:
-                SESSIONS[game_id] = sess
+                server.add_session(game_id, sess)
                 logger.info("game_loaded_for_ws", game_id=game_id)
             else:
                 # Create new session if not found
-                SESSIONS[game_id] = GameSession(
+                sess = GameSession(
                     mode=GameMode.MODE_28.value, seats=GameConfig.MIN_SEATS
                 )
+                server.add_session(game_id, sess)
                 logger.info("new_game_created_for_ws", game_id=game_id)
 
     # Register connection with manager
@@ -84,7 +88,7 @@ async def ws_game(websocket: WebSocket, game_id_or_code: str):
     # Send initial state to this connection only (not broadcast)
     # They will get full state after identifying
     try:
-        sess = SESSIONS[game_id]
+        sess = server.get_session(game_id)
         await websocket.send_json({
             "type": "state_snapshot",
             "payload": sess.get_public_state().model_dump()
@@ -149,7 +153,8 @@ async def _handle_ws_message(websocket: WebSocket, game_id: str, data: dict):
 
     typ = msg.type
     payload = msg.payload
-    sess = SESSIONS[game_id]
+    server = get_game_server()
+    sess = server.get_session(game_id)
 
     # Validate and handle each message type
     try:

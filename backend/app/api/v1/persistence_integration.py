@@ -7,7 +7,7 @@ Handles automatic saving/loading of game sessions to/from database.
 from typing import Optional
 
 
-from app.api.v1.router import SESSIONS, sessions_lock
+from app.core.game_server import get_game_server
 from app.db.config import AsyncSessionLocal
 from app.db.persistence import SessionPersistence
 from app.game.session import GameSession
@@ -24,7 +24,8 @@ async def save_game_state(game_id: str, reason: str = "auto"):
         game_id: Game ID to save
         reason: Reason for snapshot (e.g., "bid", "trump", "play", "auto")
     """
-    sess = SESSIONS.get(game_id)
+    server = get_game_server()
+    sess = server.get_session(game_id)
     if not sess:
         logger.warning("save_game_state_no_session", game_id=game_id)
         return False
@@ -70,6 +71,7 @@ async def restore_active_games():
     Loads games that are not in terminal states (completed, abandoned).
     """
     try:
+        server = get_game_server()
         async with AsyncSessionLocal() as db:
             from app.db.repository import GameRepository
 
@@ -77,11 +79,11 @@ async def restore_active_games():
             active_games = await repo.get_active_games()
 
             restored_count = 0
-            async with sessions_lock:
+            async with server.lock():
                 for game_model in active_games:
                     sess = await load_game_from_db(game_model.id)
                     if sess:
-                        SESSIONS[game_model.id] = sess
+                        server.add_session(game_model.id, sess)
                         restored_count += 1
 
             logger.info("active_games_restored", count=restored_count)

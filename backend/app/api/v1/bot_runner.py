@@ -8,8 +8,8 @@ import asyncio
 import traceback
 
 from app.api.v1.broadcast import broadcast_state
-from app.api.v1.router import SESSIONS, bot_tasks
 from app.constants import BotConfig
+from app.core.game_server import get_game_server
 from app.game import ai as ai_module
 from app.game.session import SessionState
 from app.logging_config import get_logger
@@ -25,20 +25,22 @@ def schedule_bot_runner(game_id: str):
     If a bot runner is already active for this game, this is a no-op.
     When the task completes, it automatically cleans up its reference.
     """
+    server = get_game_server()
+
     # Check if there's already a running task for this game
-    existing_task = bot_tasks.get(game_id)
+    existing_task = server.get_bot_task(game_id)
     if existing_task and not existing_task.done():
         # Bot runner already active, don't schedule another
         return
 
     # Schedule new bot runner task
     task = asyncio.create_task(run_bots_for_game(game_id))
-    bot_tasks[game_id] = task
+    server.add_bot_task(game_id, task)
 
     # Cleanup task reference when done
     def cleanup(t):
-        if bot_tasks.get(game_id) == t:
-            bot_tasks.pop(game_id, None)
+        if server.get_bot_task(game_id) == t:
+            server.remove_bot_task(game_id)
 
     task.add_done_callback(cleanup)
 
@@ -58,7 +60,8 @@ async def run_bots_for_game(
 
     Loops until there is no bot action to take or max_cycles reached.
     """
-    sess = SESSIONS.get(game_id)
+    server = get_game_server()
+    sess = server.get_session(game_id)
     if not sess:
         return
 

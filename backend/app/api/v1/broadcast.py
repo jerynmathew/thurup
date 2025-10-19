@@ -3,7 +3,7 @@ Broadcasting utilities for sending game state updates to all connected clients.
 """
 
 from app.api.v1.connection_manager import connection_manager
-from app.api.v1.router import SESSIONS
+from app.core.game_server import get_game_server
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -19,7 +19,8 @@ async def broadcast_state(game_id: str):
     Performance optimization: Pre-serializes all player hands once to avoid
     redundant serialization for each connection.
     """
-    sess = SESSIONS.get(game_id)
+    server = get_game_server()
+    sess = server.get_session(game_id)
     if not sess:
         return
 

@@ -13,13 +13,14 @@ Handles:
 import traceback
 import uuid
 
-from fastapi import HTTPException
+from fastapi import Depends, HTTPException
 
 from app.api.v1.bot_runner import schedule_bot_runner
 from app.api.v1.broadcast import broadcast_state
 from app.api.v1.persistence_integration import load_game_from_db, save_game_state
-from app.api.v1.router import SESSIONS, router, sessions_lock
+from app.api.v1.router import router
 from app.constants import ErrorMessage
+from app.core.game_server import GameServer, get_game_server
 from app.db.config import get_db
 from app.db.repository import GameRepository
 from app.game.enums import SessionState
@@ -41,14 +42,17 @@ logger = get_logger(__name__)
 
 
 @router.post("/game/create")
-async def create_game(request: CreateGameRequest):
+async def create_game(
+    request: CreateGameRequest,
+    server: GameServer = Depends(get_game_server)
+):
     """Create a new game session with validation."""
     # Generate a unique short code
-    existing_codes = {sess.short_code for sess in SESSIONS.values() if sess.short_code}
+    existing_codes = {sess.short_code for sess in server.get_all_sessions().values() if sess.short_code}
     short_code = generate_short_code(existing_codes)
 
     game = GameSession(mode=request.mode, seats=request.seats, short_code=short_code)
-    SESSIONS[game.id] = game
+    server.add_session(game.id, game)
 
     # Save initial game state
     await save_game_state(game.id, reason="create")
@@ -58,7 +62,10 @@ async def create_game(request: CreateGameRequest):
 
 
 @router.get("/game/{game_id_or_code}")
-async def get_game(game_id_or_code: str):
+async def get_game(
+    game_id_or_code: str,
+    server: GameServer = Depends(get_game_server)
+):
     """
     Get game state by UUID or short code. Loads from database if not in memory.
 
@@ -67,10 +74,10 @@ async def get_game(game_id_or_code: str):
     - Short code: /game/royal-turtle-65
     """
     # Resolve to actual game_id
-    game_id = await resolve_game_identifier(game_id_or_code, SESSIONS, raise_on_not_found=True)
+    game_id = await resolve_game_identifier(game_id_or_code, server.get_all_sessions(), raise_on_not_found=True)
 
-    if game_id in SESSIONS:
-        sess = SESSIONS[game_id]
+    if server.has_session(game_id):
+        sess = server.get_session(game_id)
         return sess.get_public_state()
 
     # Try to load from database
@@ -79,15 +86,19 @@ async def get_game(game_id_or_code: str):
         raise HTTPException(status_code=404, detail=ErrorMessage.GAME_NOT_FOUND)
 
     # Add to memory
-    async with sessions_lock:
-        SESSIONS[game_id] = sess
+    async with server.lock():
+        server.add_session(game_id, sess)
 
     logger.info("game_restored_from_db", game_id=game_id)
     return sess.get_public_state()
 
 
 @router.post("/game/{game_id_or_code}/join")
-async def join_game(game_id_or_code: str, request: JoinGameRequest):
+async def join_game(
+    game_id_or_code: str,
+    request: JoinGameRequest,
+    server: GameServer = Depends(get_game_server)
+):
     """
     Join a game by UUID or short code.
 
@@ -99,19 +110,19 @@ async def join_game(game_id_or_code: str, request: JoinGameRequest):
     If the player is a bot, schedule the bot runner.
     """
     # Resolve to actual game_id
-    game_id = await resolve_game_identifier(game_id_or_code, SESSIONS, raise_on_not_found=True)
+    game_id = await resolve_game_identifier(game_id_or_code, server.get_all_sessions(), raise_on_not_found=True)
 
-    if game_id not in SESSIONS:
+    if not server.has_session(game_id):
         # Try to load from database
         sess = await load_game_from_db(game_id)
         if not sess:
             raise HTTPException(status_code=404, detail=ErrorMessage.GAME_NOT_FOUND)
 
         # Add to memory
-        async with sessions_lock:
-            SESSIONS[game_id] = sess
+        async with server.lock():
+            server.add_session(game_id, sess)
 
-    sess = SESSIONS[game_id]
+    sess = server.get_session(game_id)
     player_id = str(uuid.uuid4())
     p = PlayerInfo(player_id=player_id, name=request.name, is_bot=request.is_bot)
     seat = await sess.add_player(p)
@@ -160,17 +171,21 @@ async def join_game(game_id_or_code: str, request: JoinGameRequest):
 
 
 @router.post("/game/{game_id}/start")
-async def start_game(game_id: str, request: StartGameRequest):
+async def start_game(
+    game_id: str,
+    request: StartGameRequest,
+    server: GameServer = Depends(get_game_server)
+):
     """
     Start a game round with validation.
 
     If not all seats are filled, automatically add bots to fill empty seats
     before starting the game.
     """
-    if game_id not in SESSIONS:
+    if not server.has_session(game_id):
         raise HTTPException(status_code=404, detail=ErrorMessage.GAME_NOT_FOUND)
 
-    sess = SESSIONS[game_id]
+    sess = server.get_session(game_id)
 
     # Auto-fill empty seats with bots
     bots_added = 0
@@ -203,12 +218,17 @@ async def start_game(game_id: str, request: StartGameRequest):
 
 
 @router.post("/game/{game_id}/bid")
-async def place_bid(game_id: str, seat: int, cmd: BidCmd):
+async def place_bid(
+    game_id: str,
+    seat: int,
+    cmd: BidCmd,
+    server: GameServer = Depends(get_game_server)
+):
     """Place a bid in the bidding phase."""
-    if game_id not in SESSIONS:
+    if not server.has_session(game_id):
         raise HTTPException(status_code=404, detail=ErrorMessage.GAME_NOT_FOUND)
 
-    sess = SESSIONS[game_id]
+    sess = server.get_session(game_id)
     ok, msg = await sess.place_bid(seat, cmd)
     await broadcast_state(game_id)
 
@@ -224,12 +244,17 @@ async def place_bid(game_id: str, seat: int, cmd: BidCmd):
 
 
 @router.post("/game/{game_id}/choose_trump")
-async def choose_trump(game_id: str, seat: int, cmd: ChooseTrumpCmd):
+async def choose_trump(
+    game_id: str,
+    seat: int,
+    cmd: ChooseTrumpCmd,
+    server: GameServer = Depends(get_game_server)
+):
     """Choose trump suit after winning the bid."""
-    if game_id not in SESSIONS:
+    if not server.has_session(game_id):
         raise HTTPException(status_code=404, detail=ErrorMessage.GAME_NOT_FOUND)
 
-    sess = SESSIONS[game_id]
+    sess = server.get_session(game_id)
     ok, msg = await sess.choose_trump(seat, cmd)
     await broadcast_state(game_id)
 
@@ -244,12 +269,17 @@ async def choose_trump(game_id: str, seat: int, cmd: ChooseTrumpCmd):
 
 
 @router.post("/game/{game_id}/play")
-async def play_card(game_id: str, seat: int, cmd: PlayCardCmd):
+async def play_card(
+    game_id: str,
+    seat: int,
+    cmd: PlayCardCmd,
+    server: GameServer = Depends(get_game_server)
+):
     """Play a card during the play phase."""
-    if game_id not in SESSIONS:
+    if not server.has_session(game_id):
         raise HTTPException(status_code=404, detail=ErrorMessage.GAME_NOT_FOUND)
 
-    sess = SESSIONS[game_id]
+    sess = server.get_session(game_id)
     ok, msg = await sess.play_card(seat, cmd)
     await broadcast_state(game_id)
 

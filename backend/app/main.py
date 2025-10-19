@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1 import router as api_router
 from app.api.v1.persistence_integration import restore_active_games
+from app.core.game_server import init_game_server, shutdown_game_server
 from app.db.cleanup import start_cleanup_task, stop_cleanup_task
 from app.db.config import close_db, init_db
 from app.logging_config import configure_logging, get_logger
@@ -26,6 +27,7 @@ async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown tasks."""
     # Startup
     logger.info("application_starting")
+    init_game_server()  # Initialize GameServer singleton
     await init_db()
     await restore_active_games()
     await start_cleanup_task()
@@ -36,6 +38,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     logger.info("application_shutting_down")
     await stop_cleanup_task()
+    await shutdown_game_server()  # Shutdown GameServer (cancel bot tasks)
     await close_db()
     logger.info("application_shutdown_complete")
 

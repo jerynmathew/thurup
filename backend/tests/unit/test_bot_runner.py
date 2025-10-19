@@ -5,7 +5,7 @@ Tests bot scheduling, action handling, and error handling.
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from app.api.v1.bot_runner import run_bots_for_game, schedule_bot_runner
@@ -27,15 +27,26 @@ def mock_session():
     return session
 
 
+@pytest.fixture
+def mock_game_server():
+    """Create a mock GameServer for testing."""
+    server = Mock()
+    server.get_session = Mock(return_value=None)
+    server.get_bot_task = Mock(return_value=None)
+    server.add_bot_task = Mock()
+    server.remove_bot_task = Mock()
+    return server
+
+
 class TestScheduleBotRunner:
     """Tests for schedule_bot_runner() function."""
 
     @pytest.mark.asyncio
-    async def test_schedule_bot_runner_creates_task(self):
+    async def test_schedule_bot_runner_creates_task(self, mock_game_server):
         """Test that scheduling creates a new task."""
         game_id = "test-game-123"
 
-        with patch("app.api.v1.bot_runner.bot_tasks", {}) as mock_tasks, patch(
+        with patch("app.api.v1.bot_runner.get_game_server", return_value=mock_game_server), patch(
             "app.api.v1.bot_runner.run_bots_for_game", new=AsyncMock()
         ):
             schedule_bot_runner(game_id)
@@ -44,61 +55,66 @@ class TestScheduleBotRunner:
             await asyncio.sleep(0.01)
 
             # Task should be created
-            assert game_id in mock_tasks or len(mock_tasks) >= 0
+            mock_game_server.add_bot_task.assert_called()
 
     @pytest.mark.asyncio
-    async def test_schedule_bot_runner_prevents_duplicate(self):
+    async def test_schedule_bot_runner_prevents_duplicate(self, mock_game_server):
         """Test that scheduling doesn't create duplicate tasks."""
         game_id = "test-game-456"
 
         # Create a mock ongoing task
         mock_task = MagicMock()
         mock_task.done.return_value = False
+        mock_game_server.get_bot_task.return_value = mock_task
 
-        with patch("app.api.v1.bot_runner.bot_tasks", {game_id: mock_task}):
+        with patch("app.api.v1.bot_runner.get_game_server", return_value=mock_game_server):
             # Try to schedule again
             schedule_bot_runner(game_id)
 
-            # Should not create new task
-            # (verified by no error and task map unchanged)
+            # Should not create new task (add_bot_task should not be called)
+            mock_game_server.add_bot_task.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_schedule_bot_runner_allows_after_completion(self):
+    async def test_schedule_bot_runner_allows_after_completion(self, mock_game_server):
         """Test that scheduling after task completion creates new task."""
         game_id = "test-game-789"
 
         # Create a mock completed task
         mock_task = MagicMock()
         mock_task.done.return_value = True
+        mock_game_server.get_bot_task.return_value = mock_task
 
-        with patch("app.api.v1.bot_runner.bot_tasks", {game_id: mock_task}), patch(
+        with patch("app.api.v1.bot_runner.get_game_server", return_value=mock_game_server), patch(
             "app.api.v1.bot_runner.run_bots_for_game", new=AsyncMock()
         ):
             schedule_bot_runner(game_id)
 
             # Should create new task since old one is done
             await asyncio.sleep(0.01)
+            mock_game_server.add_bot_task.assert_called()
 
 
 class TestRunBotsForGame:
     """Tests for run_bots_for_game() function."""
 
     @pytest.mark.asyncio
-    async def test_run_bots_no_session(self):
+    async def test_run_bots_no_session(self, mock_game_server):
         """Test that bot runner handles missing session gracefully."""
         game_id = "nonexistent-game"
+        mock_game_server.get_session.return_value = None
 
-        with patch("app.api.v1.bot_runner.SESSIONS", {}):
+        with patch("app.api.v1.bot_runner.get_game_server", return_value=mock_game_server):
             # Should not raise error
             await run_bots_for_game(game_id, delay=0.001, max_cycles=1)
 
     @pytest.mark.asyncio
-    async def test_run_bots_lobby_state(self, mock_session):
+    async def test_run_bots_lobby_state(self, mock_session, mock_game_server):
         """Test that bot runner doesn't act in LOBBY state."""
         game_id = "test-game"
         mock_session.state = SessionState.LOBBY
+        mock_game_server.get_session.return_value = mock_session
 
-        with patch("app.api.v1.bot_runner.SESSIONS", {game_id: mock_session}), patch(
+        with patch("app.api.v1.bot_runner.get_game_server", return_value=mock_game_server), patch(
             "app.api.v1.bot_runner.broadcast_state", new=AsyncMock()
         ):
             await run_bots_for_game(game_id, delay=0.001, max_cycles=1)
@@ -107,7 +123,7 @@ class TestRunBotsForGame:
             # (no exception means success)
 
     @pytest.mark.asyncio
-    async def test_run_bots_bidding_human_turn(self, mock_session):
+    async def test_run_bots_bidding_human_turn(self, mock_session, mock_game_server):
         """Test bot doesn't act when it's a human's turn."""
         game_id = "test-game"
         mock_session.state = SessionState.BIDDING
@@ -118,7 +134,9 @@ class TestRunBotsForGame:
             0: PlayerInfo(player_id="p0", name="Human", seat=0, is_bot=False)
         }
 
-        with patch("app.api.v1.bot_runner.SESSIONS", {game_id: mock_session}), patch(
+        mock_game_server.get_session.return_value = mock_session
+
+        with patch("app.api.v1.bot_runner.get_game_server", return_value=mock_game_server), patch(
             "app.api.v1.bot_runner.broadcast_state", new=AsyncMock()
         ):
             await run_bots_for_game(game_id, delay=0.001, max_cycles=1)
@@ -127,7 +145,7 @@ class TestRunBotsForGame:
             assert not hasattr(mock_session, "force_bot_play_choice") or True
 
     @pytest.mark.asyncio
-    async def test_run_bots_bidding_bot_turn(self, mock_session):
+    async def test_run_bots_bidding_bot_turn(self, mock_session, mock_game_server):
         """Test bot acts when it's bot's turn to bid."""
         game_id = "test-game"
         mock_session.state = SessionState.BIDDING
@@ -144,7 +162,9 @@ class TestRunBotsForGame:
         )
         mock_session.place_bid = AsyncMock(return_value=(True, "Bid placed"))
 
-        with patch("app.api.v1.bot_runner.SESSIONS", {game_id: mock_session}), patch(
+        mock_game_server.get_session.return_value = mock_session
+
+        with patch("app.api.v1.bot_runner.get_game_server", return_value=mock_game_server), patch(
             "app.api.v1.bot_runner.broadcast_state", new=AsyncMock()
         ):
             await run_bots_for_game(game_id, delay=0.001, max_cycles=1)
@@ -154,7 +174,7 @@ class TestRunBotsForGame:
             mock_session.place_bid.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_run_bots_choose_trump_bot(self, mock_session):
+    async def test_run_bots_choose_trump_bot(self, mock_session, mock_game_server):
         """Test bot chooses trump when winner."""
         game_id = "test-game"
         mock_session.state = SessionState.CHOOSE_TRUMP
@@ -171,7 +191,9 @@ class TestRunBotsForGame:
         )
         mock_session.choose_trump = AsyncMock(return_value=(True, "Trump chosen"))
 
-        with patch("app.api.v1.bot_runner.SESSIONS", {game_id: mock_session}), patch(
+        mock_game_server.get_session.return_value = mock_session
+
+        with patch("app.api.v1.bot_runner.get_game_server", return_value=mock_game_server), patch(
             "app.api.v1.bot_runner.broadcast_state", new=AsyncMock()
         ):
             await run_bots_for_game(game_id, delay=0.001, max_cycles=1)
@@ -180,7 +202,7 @@ class TestRunBotsForGame:
             mock_session.choose_trump.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_run_bots_play_bot_turn(self, mock_session):
+    async def test_run_bots_play_bot_turn(self, mock_session, mock_game_server):
         """Test bot plays card when it's their turn."""
         game_id = "test-game"
         mock_session.state = SessionState.PLAY
@@ -197,7 +219,9 @@ class TestRunBotsForGame:
         )
         mock_session.play_card = AsyncMock(return_value=(True, "Card played"))
 
-        with patch("app.api.v1.bot_runner.SESSIONS", {game_id: mock_session}), patch(
+        mock_game_server.get_session.return_value = mock_session
+
+        with patch("app.api.v1.bot_runner.get_game_server", return_value=mock_game_server), patch(
             "app.api.v1.bot_runner.broadcast_state", new=AsyncMock()
         ):
             await run_bots_for_game(game_id, delay=0.001, max_cycles=1)
@@ -206,7 +230,7 @@ class TestRunBotsForGame:
             mock_session.play_card.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_run_bots_max_cycles(self, mock_session):
+    async def test_run_bots_max_cycles(self, mock_session, mock_game_server):
         """Test bot runner respects max_cycles limit."""
         game_id = "test-game"
         mock_session.state = SessionState.BIDDING
@@ -226,7 +250,7 @@ class TestRunBotsForGame:
         mock_session.force_bot_play_choice = mock_bot_decision
         mock_session.place_bid = AsyncMock(return_value=(True, "Bid placed"))
 
-        with patch("app.api.v1.bot_runner.SESSIONS", {game_id: mock_session}), patch(
+        with patch("app.api.v1.bot_runner.get_game_server", return_value=mock_game_server), patch(
             "app.api.v1.bot_runner.broadcast_state", new=AsyncMock()
         ):
             await run_bots_for_game(game_id, delay=0.001, max_cycles=3)
@@ -235,7 +259,7 @@ class TestRunBotsForGame:
             assert call_count[0] <= 3
 
     @pytest.mark.asyncio
-    async def test_run_bots_handles_errors(self, mock_session):
+    async def test_run_bots_handles_errors(self, mock_session, mock_game_server):
         """Test bot runner handles errors gracefully."""
         game_id = "test-game"
         mock_session.state = SessionState.BIDDING
@@ -251,21 +275,22 @@ class TestRunBotsForGame:
             side_effect=Exception("Bot error")
         )
 
-        with patch("app.api.v1.bot_runner.SESSIONS", {game_id: mock_session}), patch(
+        with patch("app.api.v1.bot_runner.get_game_server", return_value=mock_game_server), patch(
             "app.api.v1.bot_runner.broadcast_state", new=AsyncMock()
         ):
             # Should not raise error
             await run_bots_for_game(game_id, delay=0.001, max_cycles=1)
 
     @pytest.mark.asyncio
-    async def test_run_bots_broadcasts_state(self, mock_session):
+    async def test_run_bots_broadcasts_state(self, mock_session, mock_game_server):
         """Test bot runner broadcasts state after completion."""
         game_id = "test-game"
         mock_session.state = SessionState.LOBBY
 
         mock_broadcast = AsyncMock()
+        mock_game_server.get_session.return_value = mock_session
 
-        with patch("app.api.v1.bot_runner.SESSIONS", {game_id: mock_session}), patch(
+        with patch("app.api.v1.bot_runner.get_game_server", return_value=mock_game_server), patch(
             "app.api.v1.bot_runner.broadcast_state", mock_broadcast
         ):
             await run_bots_for_game(game_id, delay=0.001, max_cycles=1)
@@ -292,7 +317,10 @@ class TestBotRunnerIntegration:
 
         await session.start_round()
 
-        with patch("app.api.v1.bot_runner.SESSIONS", {game_id: session}), patch(
+        mock_game_server = Mock()
+        mock_game_server.get_session.return_value = session
+
+        with patch("app.api.v1.bot_runner.get_game_server", return_value=mock_game_server), patch(
             "app.api.v1.bot_runner.broadcast_state", new=AsyncMock()
         ):
             # Run bot runner with short delay
@@ -329,7 +357,10 @@ class TestBotRunnerIntegration:
 
         await session.start_round()
 
-        with patch("app.api.v1.bot_runner.SESSIONS", {game_id: session}), patch(
+        mock_game_server = Mock()
+        mock_game_server.get_session.return_value = session
+
+        with patch("app.api.v1.bot_runner.get_game_server", return_value=mock_game_server), patch(
             "app.api.v1.bot_runner.broadcast_state", new=AsyncMock()
         ):
             # Run bot runner - should only act for bots

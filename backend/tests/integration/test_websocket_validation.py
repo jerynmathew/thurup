@@ -25,7 +25,8 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from fastapi.websockets import WebSocket
 
-from app.api.v1.router import SESSIONS, router
+from app.api.v1.router import router
+from app.core.game_server import get_game_server
 from app.game.session import GameSession
 from app.models import PlayerInfo
 
@@ -48,7 +49,8 @@ def client(app):
 async def game_with_players():
     """Create a game session with 4 players ready to bid."""
     game = GameSession(mode="28", seats=4)
-    SESSIONS[game.id] = game
+    server = get_game_server()
+    server.add_session(game.id, game)
 
     # Add 4 players
     for i in range(4):
@@ -65,7 +67,7 @@ async def game_with_players():
     yield game
 
     # Cleanup
-    SESSIONS.pop(game.id, None)
+    server.remove_session(game.id)
 
 
 @pytest.mark.skip(reason="TestClient incompatibility with async fixtures - WebSocket functionality verified through manual testing")
