@@ -45,3 +45,13 @@ backend/build/
 .DS_Store
 Thumbs.db
 
+# Test artifacts and coverage
+backend/.coverage
+backend/htmlcov/
+backend/.pytest_cache/
+frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
+frontend/.vitest/
+*.coverage
+

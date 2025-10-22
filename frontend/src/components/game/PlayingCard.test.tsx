@@ -8,37 +8,38 @@ import { PlayingCard } from './PlayingCard';
 import { mockCard, mockCards } from '../../test/mockData';
 
 describe('PlayingCard', () => {
-  it('renders card rank and suit', () => {
+  it('renders card image', () => {
     render(<PlayingCard card={mockCard} />);
-    expect(screen.getByText('A')).toBeInTheDocument();
-    expect(screen.getByText('♠')).toBeInTheDocument();
+    const img = screen.getByRole('img');
+    expect(img).toBeInTheDocument();
+    expect(img).toHaveAttribute('alt', 'A♠');
   });
 
-  it('applies red color for hearts', () => {
+  it('renders correct image for hearts', () => {
     const heartCard = { ...mockCard, suit: '♥' as const };
     render(<PlayingCard card={heartCard} />);
-    const rankElement = screen.getByText('A');
-    expect(rankElement).toHaveClass('text-red-600');
+    const img = screen.getByRole('img');
+    expect(img).toHaveAttribute('src', 'https://deckofcardsapi.com/static/img/AH.png');
   });
 
-  it('applies red color for diamonds', () => {
+  it('renders correct image for diamonds', () => {
     const diamondCard = { ...mockCard, suit: '♦' as const };
     render(<PlayingCard card={diamondCard} />);
-    const rankElement = screen.getByText('A');
-    expect(rankElement).toHaveClass('text-red-600');
+    const img = screen.getByRole('img');
+    expect(img).toHaveAttribute('src', 'https://deckofcardsapi.com/static/img/AD.png');
   });
 
-  it('applies black color for spades', () => {
+  it('renders correct image for spades', () => {
     render(<PlayingCard card={mockCard} />);
-    const rankElement = screen.getByText('A');
-    expect(rankElement).toHaveClass('text-gray-900');
+    const img = screen.getByRole('img');
+    expect(img).toHaveAttribute('src', 'https://deckofcardsapi.com/static/img/AS.png');
   });
 
-  it('applies black color for clubs', () => {
+  it('renders correct image for clubs', () => {
     const clubCard = { ...mockCard, suit: '♣' as const };
     render(<PlayingCard card={clubCard} />);
-    const rankElement = screen.getByText('A');
-    expect(rankElement).toHaveClass('text-gray-900');
+    const img = screen.getByRole('img');
+    expect(img).toHaveAttribute('src', 'https://deckofcardsapi.com/static/img/AC.png');
   });
 
   it('shows playable indicator when isPlayable is true', () => {
@@ -79,19 +80,22 @@ describe('PlayingCard', () => {
   it('applies small size correctly', () => {
     render(<PlayingCard card={mockCard} size="sm" />);
     const button = screen.getByRole('button');
-    expect(button).toHaveClass('w-16', 'h-24', 'text-xl');
+    expect(button).toHaveClass('w-16');
+    expect(button).toHaveClass('h-24');
   });
 
   it('applies medium size correctly', () => {
     render(<PlayingCard card={mockCard} size="md" />);
     const button = screen.getByRole('button');
-    expect(button).toHaveClass('w-20', 'h-28', 'text-2xl');
+    expect(button).toHaveClass('w-20');
+    expect(button).toHaveClass('h-28');
   });
 
   it('applies large size correctly', () => {
     render(<PlayingCard card={mockCard} size="lg" />);
     const button = screen.getByRole('button');
-    expect(button).toHaveClass('w-24', 'h-32', 'text-3xl');
+    expect(button).toHaveClass('w-24');
+    expect(button).toHaveClass('h-32');
   });
 
   it('applies opacity when disabled', () => {

@@ -16,8 +16,9 @@ from app.db.repository import (
     RoundHistoryRepository,
     SnapshotRepository,
 )
+from app.game.enums import HiddenTrumpMode, SessionState
 from app.game.rules import Card
-from app.game.session import GameSession, HiddenTrumpMode, SessionState
+from app.game.session import GameSession
 from app.logging_config import get_logger
 from app.models import PlayerInfo
 
@@ -182,9 +183,9 @@ class SessionPersistence:
         return {
             "leader": session.leader,
             "turn": session.turn,
-            "current_highest": session.current_highest,
-            "bid_winner": session.bid_winner,
-            "bid_value": session.bid_value,
+            "current_highest": session.bidding_manager.current_highest,
+            "bid_winner": session.bidding_manager.bid_winner,
+            "bid_value": session.bidding_manager.bid_value,
             "trump": session.trump,
             "trump_hidden": session.trump_hidden,
             "trump_owner": session.trump_owner,
@@ -206,11 +207,11 @@ class SessionPersistence:
             "kitty": [self._card_to_dict(c) for c in session.kitty],
             "hands": [[self._card_to_dict(c) for c in hand] for hand in session.hands],
             # Bidding
-            "bids": session.bids,
-            "bids_received": list(session._bids_received),
-            "current_highest": session.current_highest,
-            "bid_winner": session.bid_winner,
-            "bid_value": session.bid_value,
+            "bids": session.bidding_manager.get_bids_dict(),
+            "bids_received": list(session.bidding_manager.bids_received),
+            "current_highest": session.bidding_manager.current_highest,
+            "bid_winner": session.bidding_manager.bid_winner,
+            "bid_value": session.bidding_manager.bid_value,
             # Trump
             "trump": session.trump,
             "trump_hidden": session.trump_hidden,
@@ -219,11 +220,15 @@ class SessionPersistence:
             "leader": session.leader,
             "turn": session.turn,
             "current_trick": [
-                [seat, self._card_to_dict(card)] for seat, card in session.current_trick
+                [seat, self._card_to_dict(card)] for seat, card in session.trick_manager.current_trick
             ],
+            "last_trick": (
+                [session.trick_manager.last_trick[0], [[s, self._card_to_dict(c)] for s, c in session.trick_manager.last_trick[1]]]
+                if session.trick_manager.last_trick else None
+            ),
             "captured_tricks": [
                 [winner, [[s, self._card_to_dict(c)] for s, c in trick]]
-                for winner, trick in session.captured_tricks
+                for winner, trick in session.trick_manager.captured_tricks
             ],
             "points_by_seat": session.points_by_seat,
         }
@@ -250,12 +255,14 @@ class SessionPersistence:
             [self._dict_to_card(c) for c in hand] for hand in data["hands"]
         ]
 
-        # Restore bidding
-        session.bids = {int(k): v for k, v in data["bids"].items()}
-        session._bids_received = set(data["bids_received"])
-        session.current_highest = data["current_highest"]
-        session.bid_winner = data["bid_winner"]
-        session.bid_value = data["bid_value"]
+        # Restore bidding using BiddingManager
+        session.bidding_manager.restore_from_state(
+            bids={int(k): v for k, v in data["bids"].items()},
+            bids_received=set(data["bids_received"]),
+            current_highest=data["current_highest"],
+            bid_winner=data["bid_winner"],
+            bid_value=data["bid_value"],
+        )
 
         # Restore trump
         session.trump = data["trump"]
@@ -265,13 +272,21 @@ class SessionPersistence:
         # Restore play
         session.leader = data["leader"]
         session.turn = data["turn"]
-        session.current_trick = [
+
+        # Restore trick state using TrickManager
+        current_trick = [
             (seat, self._dict_to_card(card)) for seat, card in data["current_trick"]
         ]
-        session.captured_tricks = [
+        last_trick = None
+        if data.get("last_trick"):
+            winner, trick_data = data["last_trick"]
+            last_trick = (winner, [(s, self._dict_to_card(c)) for s, c in trick_data])
+        captured_tricks = [
             (winner, [(s, self._dict_to_card(c)) for s, c in trick])
             for winner, trick in data["captured_tricks"]
         ]
+        session.trick_manager.restore_from_state(current_trick, last_trick, captured_tricks)
+
         session.points_by_seat = {int(k): v for k, v in data["points_by_seat"].items()}
 
         return session
@@ -294,9 +309,11 @@ class SessionPersistence:
             phase_data = json.loads(game.current_phase_data)
             session.leader = phase_data.get("leader", 0)
             session.turn = phase_data.get("turn", 0)
-            session.current_highest = phase_data.get("current_highest")
-            session.bid_winner = phase_data.get("bid_winner")
-            session.bid_value = phase_data.get("bid_value")
+            # Restore bidding state if present
+            if phase_data.get("current_highest") is not None or phase_data.get("bid_winner") is not None:
+                session.bidding_manager.current_highest = phase_data.get("current_highest")
+                session.bidding_manager.bid_winner = phase_data.get("bid_winner")
+                session.bidding_manager.bid_value = phase_data.get("bid_value")
             session.trump = phase_data.get("trump")
             session.trump_hidden = phase_data.get("trump_hidden", True)
             session.trump_owner = phase_data.get("trump_owner")

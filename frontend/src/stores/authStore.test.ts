@@ -2,8 +2,15 @@
  * Auth Store tests.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useAuthStore } from './authStore';
+
+// Mock the API client
+vi.mock('../api/client', () => ({
+  createAuthenticatedClient: () => ({
+    get: vi.fn().mockResolvedValue({ data: { status: 'healthy' } }),
+  }),
+}));
 
 describe('authStore', () => {
   beforeEach(() => {
@@ -19,9 +26,9 @@ describe('authStore', () => {
   });
 
   describe('Login', () => {
-    it('logs in with credentials', () => {
+    it('logs in with credentials', async () => {
       const { login } = useAuthStore.getState();
-      login('admin', 'password');
+      await login('admin', 'password');
 
       const state = useAuthStore.getState();
       expect(state.isAuthenticated).toBe(true);
@@ -29,9 +36,9 @@ describe('authStore', () => {
       expect(state.password).toBe('password');
     });
 
-    it('updates state immediately', () => {
+    it('updates state immediately', async () => {
       const { login } = useAuthStore.getState();
-      login('testuser', 'testpass');
+      await login('testuser', 'testpass');
 
       const state = useAuthStore.getState();
       expect(state.isAuthenticated).toBe(true);
@@ -41,9 +48,9 @@ describe('authStore', () => {
   });
 
   describe('Logout', () => {
-    it('clears authentication state', () => {
+    it('clears authentication state', async () => {
       const { login, logout } = useAuthStore.getState();
-      login('admin', 'password');
+      await login('admin', 'password');
 
       logout();
 
@@ -63,9 +70,9 @@ describe('authStore', () => {
   });
 
   describe('Auth Header', () => {
-    it('generates Basic Auth header', () => {
+    it('generates Basic Auth header', async () => {
       const { login, getAuthHeader } = useAuthStore.getState();
-      login('admin', 'password');
+      await login('admin', 'password');
 
       const header = getAuthHeader();
       expect(header).toBeTruthy();
@@ -83,9 +90,9 @@ describe('authStore', () => {
       expect(header).toBeNull();
     });
 
-    it('returns null after logout', () => {
+    it('returns null after logout', async () => {
       const { login, logout, getAuthHeader } = useAuthStore.getState();
-      login('admin', 'password');
+      await login('admin', 'password');
       logout();
 
       const header = getAuthHeader();

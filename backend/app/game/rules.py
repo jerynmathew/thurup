@@ -179,19 +179,3 @@ def determine_trick_winner(trick: List[Tuple[int, Card]], trump: Optional[str]) 
 
 def trick_points(trick: List[Tuple[int, Card]]) -> int:
     return sum(c.points() for (_, c) in trick)
-
-
-def tally_team_points(
-    captured_tricks: List[List[Tuple[int, Card]]], seats: int
-) -> Dict[int, int]:
-    """
-    captured_tricks: list of tricks won (each trick is a list of (seat, Card))
-    returns mapping team_idx -> points
-    team idx: 0 for even seats, 1 for odd seats (works for 4 or 6 players)
-
-    Note: This is a placeholder function. Real tallying is handled in session manager
-    where winner seat is known.
-    """
-    team_points = {}
-    # Real tallying is handled in session manager where winner seat is known.
-    return team_points

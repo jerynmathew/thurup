@@ -28,10 +28,12 @@ async def test_hidden_trump_reveal_on_first_nonfollow():
     sess.hands[2] = [Card(suit="♥", rank="A", uid="A♥#T2")]
     sess.hands[3] = [Card(suit="♦", rank="7", uid="7♦#T3")]
 
-    # Start bidding: seat0 bids and wins
-    await sess.place_bid(0, BidCmd(value=16))
-    for s in [1, 2, 3]:
-        await sess.place_bid(s, BidCmd(value=None))
+    # Start bidding in correct order (leader is seat 3 when dealer=0)
+    # Bidding order: 3 -> 2 -> 1 -> 0 (counter-clockwise)
+    await sess.place_bid(3, BidCmd(value=None))  # Pass
+    await sess.place_bid(2, BidCmd(value=None))  # Pass
+    await sess.place_bid(1, BidCmd(value=None))  # Pass
+    await sess.place_bid(0, BidCmd(value=16))    # seat0 wins
 
     assert sess.state.value == "choose_trump"
     await sess.choose_trump(0, ChooseTrumpCmd(suit="♥"))
@@ -65,16 +67,24 @@ async def test_hidden_trump_reveal_on_first_nonfollow():
     sess.hands[1] = [Card(suit="♥", rank="J", uid="J♥#T1")]  # J♥ is trump candidate
     sess.hands[2] = [Card(suit="♣", rank="7", uid="7♣#T2")]
     sess.hands[3] = [Card(suit="♦", rank="7", uid="7♦#T3")]
-    # bidding and choose trump by seat0
+    # Bidding in correct order (leader is seat 3 when dealer=0)
+    await sess.place_bid(3, BidCmd(value=None))
+    await sess.place_bid(2, BidCmd(value=None))
+    await sess.place_bid(1, BidCmd(value=None))
     await sess.place_bid(0, BidCmd(value=16))
-    for s in [1, 2, 3]:
-        await sess.place_bid(s, BidCmd(value=None))
     await sess.choose_trump(0, ChooseTrumpCmd(suit="♥"))
     assert sess.trump_hidden is True
     sess.leader = 0
     sess.turn = 0
     # seat0 leads ♣
     await sess.play_card(0, PlayCardCmd(card_id="A♣#T0"))
+    # Turn is now seat 3 (clockwise: 0 - 1 = -1 % 4 = 3)
+    # seat3 plays 7♦ (cannot follow ♣)
+    await sess.play_card(3, PlayCardCmd(card_id="7♦#T3"))
+    # Turn is now seat 2 (clockwise: 3 - 1 = 2)
+    # seat2 plays 7♣ (follows suit)
+    await sess.play_card(2, PlayCardCmd(card_id="7♣#T2"))
+    # Turn is now seat 1 (clockwise: 2 - 1 = 1)
     # seat1 cannot follow (no ♣) but plays trump J♥
     ok, msg = await sess.play_card(1, PlayCardCmd(card_id="J♥#T1"))
     assert ok

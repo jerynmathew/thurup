@@ -7,9 +7,10 @@ Tests the full WebSocket flow for manual trump reveal.
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.v1.router import SESSIONS
 from app.constants import Suit
-from app.game.session import GameSession, SessionState
+from app.core.game_server import get_game_server
+from app.game.enums import SessionState
+from app.game.session import GameSession
 from app.main import app
 from app.models import PlayerInfo
 
@@ -42,8 +43,8 @@ def setup_game():
     sess.turn = 0
     sess.trump = Suit.HEARTS.value
     sess.trump_hidden = True
-    sess.bid_winner = 2
-    sess.bid_value = 20
+    sess.bidding_manager.bid_winner = 2
+    sess.bidding_manager.bid_value = 20
 
     # Give players some cards
     from app.game.rules import Card
@@ -68,8 +69,13 @@ def setup_game():
         ],
     ]
 
-    SESSIONS[game_id] = sess
-    return game_id, sess
+    server = get_game_server()
+    server.add_session(game_id, sess)
+
+    yield game_id, sess
+
+    # Cleanup
+    server.remove_session(game_id)
 
 
 def collect_ws_messages_until(websocket, expected_types, max_messages=10, stop_condition=None):
@@ -111,7 +117,7 @@ class TestRevealTrumpWebSocket:
         # Player 0 leads with a club
         lead_card = sess.hands[0][0]  # 7♣
         sess.hands[0].remove(lead_card)
-        sess.current_trick.append((0, lead_card))
+        sess.trick_manager.current_trick.append((0, lead_card))
         sess.turn = 1
 
         # Connect via WebSocket
@@ -217,7 +223,7 @@ class TestRevealTrumpWebSocket:
         # Player 0 leads with a club
         lead_card = sess.hands[0][0]  # 7♣
         sess.hands[0].remove(lead_card)
-        sess.current_trick.append((0, lead_card))
+        sess.trick_manager.current_trick.append((0, lead_card))
         sess.turn = 2
 
         # Player 2 has clubs (can follow suit)
@@ -257,7 +263,7 @@ class TestRevealTrumpWebSocket:
         game_id, sess = setup_game
 
         # Player 0 is leading, no trick yet
-        assert len(sess.current_trick) == 0
+        assert len(sess.trick_manager.current_trick) == 0
         assert sess.turn == 0
 
         with client.websocket_connect(f"/api/v1/ws/game/{game_id}") as websocket:
@@ -299,7 +305,7 @@ class TestRevealTrumpWebSocket:
         # Player 0 leads
         lead_card = sess.hands[0][0]
         sess.hands[0].remove(lead_card)
-        sess.current_trick.append((0, lead_card))
+        sess.trick_manager.current_trick.append((0, lead_card))
         sess.turn = 1
 
         with client.websocket_connect(f"/api/v1/ws/game/{game_id}") as websocket:
@@ -336,7 +342,7 @@ class TestRevealTrumpWebSocket:
         # Player 0 leads with a club
         lead_card = sess.hands[0][0]
         sess.hands[0].remove(lead_card)
-        sess.current_trick.append((0, lead_card))
+        sess.trick_manager.current_trick.append((0, lead_card))
         sess.turn = 1
 
         # Connect two clients

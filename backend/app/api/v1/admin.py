@@ -19,7 +19,8 @@ from pydantic import BaseModel
 
 from app.api.v1.connection_manager import connection_manager
 from app.api.v1.persistence_integration import delete_game_from_db, save_game_state
-from app.api.v1.router import SESSIONS, bot_tasks, router, sessions_lock
+from app.api.v1.router import router
+from app.core.game_server import get_game_server
 from app.db.config import AsyncSessionLocal
 from app.db.models import GameModel, GameStateSnapshotModel, PlayerModel, RoundHistoryModel
 from app.logging_config import get_logger
@@ -128,12 +129,14 @@ async def get_server_health(username: str = Depends(verify_admin)):
     # For now, just return a placeholder
     uptime = 0.0
 
+    server = get_game_server()
+
     health = ServerHealth(
         status="healthy" if db_connected else "degraded",
         uptime_seconds=uptime,
-        in_memory_sessions=len(SESSIONS),
+        in_memory_sessions=len(server.get_all_sessions()),
         total_connections=total_connections,
-        running_bot_tasks=len(bot_tasks),
+        running_bot_tasks=len(server.get_all_bot_tasks()),
         database_connected=db_connected,
     )
 
@@ -148,14 +151,15 @@ async def list_sessions(username: str = Depends(verify_admin)):
 
     Requires admin authentication.
     """
+    server = get_game_server()
     session_infos = []
 
-    async with sessions_lock:
-        for game_id, sess in SESSIONS.items():
+    async with server.lock():
+        for game_id, sess in server.get_all_sessions().items():
             # Get connection info
             connection_count = connection_manager.get_connection_count(game_id)
             connected_seats = list(connection_manager.get_present_seats(game_id))
-            has_bot_task = game_id in bot_tasks
+            has_bot_task = server.has_bot_task(game_id)
 
             session_infos.append(
                 SessionInfo(
@@ -183,7 +187,8 @@ async def get_session_detail(game_id: str, username: str = Depends(verify_admin)
     Returns full session state including hands, bids, tricks, etc.
     Requires admin authentication.
     """
-    sess = SESSIONS.get(game_id)
+    server = get_game_server()
+    sess = server.get_session(game_id)
     if not sess:
         raise HTTPException(status_code=404, detail="Session not found in memory")
 
@@ -203,7 +208,7 @@ async def get_session_detail(game_id: str, username: str = Depends(verify_admin)
         "all_hands": hands,
         "connection_count": connection_count,
         "connected_seats": connected_seats,
-        "has_bot_task": game_id in bot_tasks,
+        "has_bot_task": server.has_bot_task(game_id),
     }
 
     logger.info("session_detail_retrieved", username=username, game_id=game_id)
@@ -283,7 +288,8 @@ async def force_save_session(game_id: str, username: str = Depends(verify_admin)
 
     Requires admin authentication.
     """
-    sess = SESSIONS.get(game_id)
+    server = get_game_server()
+    sess = server.get_session(game_id)
     if not sess:
         raise HTTPException(status_code=404, detail="Session not found in memory")
 
@@ -304,9 +310,12 @@ async def delete_session(game_id: str, username: str = Depends(verify_admin)):
     This is a destructive operation. Use with caution.
     Requires admin authentication.
     """
+    server = get_game_server()
     # Remove from memory
-    async with sessions_lock:
-        sess = SESSIONS.pop(game_id, None)
+    async with server.lock():
+        sess = server.get_session(game_id)
+        if sess:
+            server.remove_session(game_id)
 
     if not sess:
         logger.warning("session_delete_not_found", username=username, game_id=game_id)
@@ -337,7 +346,8 @@ async def kill_bot_task(game_id: str, username: str = Depends(verify_admin)):
     Useful for debugging bot issues or stopping runaway bot loops.
     Requires admin authentication.
     """
-    task = bot_tasks.get(game_id)
+    server = get_game_server()
+    task = server.get_bot_task(game_id)
 
     if not task:
         raise HTTPException(status_code=404, detail="No bot task running for this game")
@@ -346,7 +356,7 @@ async def kill_bot_task(game_id: str, username: str = Depends(verify_admin)):
     task.cancel()
 
     # Clean up from registry
-    bot_tasks.pop(game_id, None)
+    server.remove_bot_task(game_id)
 
     logger.info("bot_task_killed", username=username, game_id=game_id)
     return {"ok": True, "message": "Bot task cancelled"}

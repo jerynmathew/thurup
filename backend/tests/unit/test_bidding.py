@@ -3,7 +3,8 @@ import pytest
 import asyncio
 from datetime import datetime, timedelta, timezone
 
-from app.game.session import GameSession, SessionState
+from app.game.enums import SessionState
+from app.game.session import GameSession
 from app.models import PlayerInfo, BidCmd
 
 
@@ -21,7 +22,7 @@ async def act_when_turn(
         if (
             sess.turn == seat
             and sess.state == SessionState.BIDDING
-            and sess.bids.get(seat) is None
+            and sess.bidding_manager.bids.get(seat) is None
         ):
             ok, msg = await sess.place_bid(seat, BidCmd(value=bid_value))
             return ok, msg
@@ -47,9 +48,12 @@ async def test_sequential_bidding_order_and_transition():
 
     await sess.start_round(dealer=0)
     assert sess.state == SessionState.BIDDING
+    # With dealer=0, leader=(0-1)%4=3 (clockwise direction)
+    assert sess.turn == 3  # Leader starts
 
     # sequence of bids we want to apply in seat order (will be applied when seat becomes turn)
-    actions = {0: -1, 1: 18, 2: -1, 3: 20}  # pass  # pass
+    # Clockwise bidding order: 3 -> 2 -> 1 -> 0
+    actions = {3: -1, 2: 18, 1: -1, 0: 20}  # seat 3 passes, seat 2 bids 18, seat 1 passes, seat 0 bids 20
 
     # Drive sequential bidding: for each seat in the natural order starting from leader,
     # wait for the seat to become turn then place its action.
@@ -65,9 +69,9 @@ async def test_sequential_bidding_order_and_transition():
         sess.state == SessionState.CHOOSE_TRUMP
     ), f"expected CHOOSE_TRUMP got {sess.state}"
     # bids recorded correctly (no None left)
-    assert all(v is not None for v in sess.bids.values())
+    assert all(v is not None for v in sess.bidding_manager.bids.values())
     for s, v in actions.items():
-        assert sess.bids[s] == v
+        assert sess.bidding_manager.bids[s] == v
 
 
 @pytest.mark.asyncio
@@ -84,8 +88,10 @@ async def test_all_pass_redeal_nonblocking():
 
     await sess.start_round(dealer=0)
     assert sess.state == SessionState.BIDDING
+    # With dealer=0, leader=(0-1)%4=3 (clockwise direction)
+    assert sess.turn == 3  # Leader starts
 
-    # All seats pass in turn order; use act_when_turn to avoid hangs
+    # All seats pass in clockwise order: 3 -> 2 -> 1 -> 0
     for _ in range(sess.seats):
         cur = sess.turn
         ok, msg = await act_when_turn(sess, cur, -1, timeout_s=2.0)
@@ -97,7 +103,7 @@ async def test_all_pass_redeal_nonblocking():
     ), f"expected BIDDING after redeal, got {sess.state}"
     # bids should have been reset to None for the new round
     assert all(
-        v is None for v in sess.bids.values()
+        v is None for v in sess.bidding_manager.bids.values()
     ), "bids should be reset (None) after redeal"
     # hand sizes should match expected hand size for mode (basic sanity)
     from app.game.rules import hand_size_for
