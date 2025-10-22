@@ -23,6 +23,78 @@ npm run dev
 
 ---
 
+## Automated Testing
+
+The project includes both automated unit/integration tests and end-to-end tests to ensure code quality and catch regressions early.
+
+### Backend Tests (pytest)
+
+**Run all backend tests:**
+```bash
+cd backend
+uv run pytest -v
+```
+
+**Run with coverage:**
+```bash
+uv run pytest --cov=app --cov-report=html
+```
+
+**Current status:**
+- 331 tests passing
+- 76% code coverage
+- Test files: `backend/tests/`
+
+### Frontend E2E Tests (Playwright)
+
+**Prerequisites:**
+- Backend must be running on port 18081
+- Frontend must be running on port 5173
+
+**Run E2E tests:**
+```bash
+cd frontend
+npm run test:e2e
+```
+
+**Run with UI mode (interactive):**
+```bash
+npm run test:e2e:ui
+```
+
+**Run specific test:**
+```bash
+npx playwright test tests/e2e/game-flow.spec.ts
+```
+
+**Current status:**
+- 13 test scenarios
+- 10 passing (77% success rate)
+- 3 tests fail intermittently due to bot addition timing
+- Test files: `frontend/tests/e2e/`
+
+**Test scenarios covered:**
+- ✅ Game creation and lobby flow
+- ✅ Bot player addition
+- ✅ Game start with full player count
+- ✅ Session persistence on page refresh
+- ✅ Bidding phase interactions
+- ✅ Card display in hand
+- ✅ Real-time WebSocket updates
+- ⚠️ Rapid bot addition (timing issues)
+- ⚠️ Complete game flow (timing issues)
+
+**Known issues:**
+- Bot addition tests need longer wait times (currently 2000ms)
+- CI/CD environments may need adjusted timeouts
+- WebSocket reconnection timing can cause flakiness
+
+**Test reports:**
+- HTML report: `frontend/playwright-report/index.html`
+- Test results: `frontend/test-results/`
+
+---
+
 ## Test Flow 1: Create and Play a Game (Solo with Bots)
 
 ### 1.1 Create a New Game

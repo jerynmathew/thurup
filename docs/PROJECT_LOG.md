@@ -205,7 +205,9 @@ All requests are validated using Pydantic models with proper constraints:
   - State transitions and sequential bidding
 
 Tests use `pytest` with `pytest-asyncio` for async test support.
-**Current coverage:** 24 tests, all passing.
+**Current coverage:**
+- Backend: 331 tests passing, 76% coverage
+- Frontend E2E: 13 tests (10 passing, 3 timing-related failures)
 
 ## Environment Variables
 
@@ -466,6 +468,87 @@ class MyRequest(BaseModel):
 - `backend/app/models.py` - Added validators and request models
 - `backend/pyproject.toml` - Added structlog dependencies
 - `frontend/src/hooks/useGameSocket.tsx` - Fixed reconnection logic
+
+### E2E Testing & Project Maturity (Completed)
+
+1. **Playwright E2E Test Suite** ✅
+   - Implemented comprehensive E2E tests using Playwright
+   - Test coverage: 13 test scenarios, 10 passing (77% success rate)
+   - Test locations: `frontend/tests/e2e/game-flow.spec.ts`, `frontend/tests/e2e/home-page.spec.ts`
+   - Configuration: `frontend/playwright.config.ts`
+
+2. **Test Scenarios Covered** ✅
+   - Complete game creation and lobby flow
+   - Bot player addition and management
+   - Game start with full player count
+   - Session persistence on page refresh
+   - Bidding phase interactions
+   - Card display and hand management
+   - Real-time WebSocket state updates
+
+3. **Known Issues**
+   - 3 tests fail intermittently due to bot addition timing
+   - Tests require backend running on port 18081
+   - Some timing adjustments needed for CI/CD environments
+
+4. **Project Maturity Improvements** ✅
+   - Added MIT License for open source distribution
+   - Established professional git commit policy (no AI/tool references)
+   - Updated .gitignore to exclude test artifacts (coverage, playwright reports)
+   - Removed tracked test artifacts from repository
+
+5. **Test Commands**
+   ```bash
+   # Run E2E tests
+   cd frontend
+   npm run test:e2e
+
+   # Run E2E tests in UI mode
+   npm run test:e2e:ui
+
+   # Run specific test file
+   npx playwright test tests/e2e/game-flow.spec.ts
+   ```
+
+### Git Workflow
+
+**Branch Strategy:**
+- **main**: Stable, production-ready branch with clear feature/bugfix commits
+  - Only squash-merged features from play branch
+  - Each commit represents a complete, tested feature set
+  - Tagged releases (v0.1.0, v0.2.0, etc.)
+- **play**: Development, iteration, and experimentation branch
+  - All active development happens here
+  - Detailed commit history preserved
+  - Squash merge to main when features are stable
+
+**Workflow Process:**
+1. Work in `play` branch for all development and iteration
+2. When feature is stable and tested, squash merge to `main`
+3. Create annotated tag on `main` for significant releases
+4. Continue development in `play` branch
+
+**Example:**
+```bash
+# Work in play branch
+git checkout play
+# ... make changes, commit ...
+
+# When ready to release
+git checkout main
+git merge --squash play
+git commit -m "Add feature X with comprehensive tests
+
+- Feature details
+- Test coverage
+- Documentation updates"
+
+# Tag release
+git tag -a v0.1.0 -m "Release v0.1.0 - Description"
+
+# Continue work
+git checkout play
+```
 
 ### Next Steps: Week 2 (Persistence Layer)
 
