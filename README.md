@@ -11,118 +11,145 @@ A modern, real-time multiplayer implementation of the classic 28/56 card game.
 - **Persistent State**: Automatic game state saving and recovery
 - **Modern UI**: Beautiful, responsive interface built with React and TailwindCSS
 
-## 📚 Documentation
-
-### Core Documentation
-- **[TECHNICAL_REVIEW.md](./docs/TECHNICAL_REVIEW.md)** - 🔍 Comprehensive codebase review, architecture analysis, and refactoring priorities
-- **[ROADMAP.md](./docs/ROADMAP.md)** - 🗺️ Feature roadmap and development milestones
-
-### Project Documentation
-Complete project documentation is available in the [`docs/`](./docs/) folder:
-
-- **[ARCHITECTURE.md](./docs/ARCHITECTURE.md)** - Complete system architecture (backend + frontend)
-- **[PROJECT_LOG.md](./docs/PROJECT_LOG.md)** - Development history and progress
-- **[REQUIREMENTS.md](./docs/REQUIREMENTS.md)** - Feature requirements and specifications
-- **[DEVELOPER_GUIDE.md](./docs/DEVELOPER_GUIDE.md)** - Setup and development instructions
-- **[API.md](./docs/API.md)** - API endpoint documentation
-
-### Component Logs
-- **[backend/CLAUDE.md](./backend/CLAUDE.md)** - Backend development log with technical details
-- **[frontend/CLAUDE.md](./frontend/CLAUDE.md)** - Frontend development log with UI/UX changes
-
 ## 🚀 Quick Start
 
-### Prerequisites
+**New to Thurup?** Follow the [Quickstart Guide](./docs/getting-started/QUICKSTART.md) to get running in 5 minutes.
 
-- **Backend**: Python 3.11+, [uv](https://github.com/astral-sh/uv) package manager
-- **Frontend**: Node.js 20+, npm
-- **Docker**: Optional, for containerized deployment
+**Detailed setup?** See the [Installation Guide](./docs/getting-started/INSTALLATION.md).
 
-### Development Setup
+### Quick Commands
 
 **Backend:**
 ```bash
 cd backend
-uv sync                          # Install dependencies
-uv run alembic upgrade head      # Run migrations
-uv run uvicorn app.main:app --reload  # Start dev server
+uv sync                                    # Install dependencies
+uv run alembic upgrade head                # Run migrations
+uv run uvicorn app.main:app --reload --port 18081
 ```
 
 **Frontend:**
 ```bash
 cd frontend
-npm install                      # Install dependencies
-npm run dev                      # Start dev server
+npm install                                # Install dependencies
+npm run dev                                # Start dev server
 ```
 
-**Docker:**
-```bash
-docker-compose up --build        # Start both services
-```
+**Access the app**: http://localhost:5173
+
+## 📚 Documentation
+
+Complete documentation is organized in the [`docs/`](./docs/) folder:
+
+### Getting Started
+- **[Quickstart Guide](./docs/getting-started/QUICKSTART.md)** - Get up and running in 5 minutes
+- **[Installation Guide](./docs/getting-started/INSTALLATION.md)** - Comprehensive setup instructions
+- **[Deployment Guide](./docs/getting-started/DEPLOYMENT.md)** - Production deployment strategies
+
+### Development
+- **[Developer Guide](./docs/development/DEVELOPER_GUIDE.md)** - Development workflow and best practices
+- **[Architecture](./docs/development/ARCHITECTURE.md)** - System design and structure
+- **[API Reference](./docs/development/API_REFERENCE.md)** - Complete backend API documentation
+- **[Contributing](./docs/development/CONTRIBUTING.md)** - How to contribute to the project
+
+### Testing
+- **[Testing Guide](./docs/testing/TESTING_GUIDE.md)** - Comprehensive testing documentation
+- **[Running Tests](./docs/testing/RUNNING_TESTS.md)** - Quick command reference
+
+### Planning & Implementation
+- **[Requirements](./docs/planning/REQUIREMENTS.md)** - Feature requirements and specifications
+- **[Roadmap](./docs/planning/ROADMAP.md)** - Development roadmap and milestones
+- **[Technical Debt](./docs/planning/TECHNICAL_DEBT_TODO.md)** - Known issues and improvements
+- **[Known Bugs](./docs/planning/KNOWN_BUGS.md)** - Bug tracking and status
+- **[Technical Review](./docs/planning/TECHNICAL_REVIEW.md)** - Code review and priorities
+- **[Round History Implementation](./docs/implementation/ROUND_HISTORY_IMPLEMENTATION.md)** - Game history system
+
+### Component Logs (for Claude Code)
+- **[backend/CLAUDE.md](./backend/CLAUDE.md)** - Backend development log with technical details
+- **[frontend/CLAUDE.md](./frontend/CLAUDE.md)** - Frontend development log with UI/UX changes
 
 ## 🏗️ Project Structure
 
 ```
 thurup/
 ├── backend/              # FastAPI backend with WebSocket support
-│   ├── app/             # Application source code
-│   │   ├── api/         # REST and WebSocket endpoints
-│   │   ├── game/        # Game logic and state management
-│   │   └── db/          # Database models and persistence
-│   ├── tests/           # Unit, integration, and E2E tests
-│   └── alembic/         # Database migrations
+│   ├── app/
+│   │   ├── api/v1/       # Modular API endpoints
+│   │   │   ├── router.py              # Main router and shared state
+│   │   │   ├── rest.py                # REST endpoints
+│   │   │   ├── websocket.py           # WebSocket handler
+│   │   │   ├── broadcast.py           # State broadcasting
+│   │   │   ├── bot_runner.py          # Bot AI orchestration
+│   │   │   ├── connection_manager.py  # WebSocket connections
+│   │   │   ├── persistence_integration.py  # Database integration
+│   │   │   ├── history.py             # Game history endpoints
+│   │   │   └── admin.py               # Admin endpoints
+│   │   ├── game/         # Game logic and state management
+│   │   └── db/           # Database models and persistence
+│   ├── tests/            # Unit, integration, and E2E tests
+│   └── alembic/          # Database migrations
 │
-├── frontend/            # React + TypeScript frontend
+├── frontend/             # React + TypeScript frontend
 │   ├── src/
-│   │   ├── api/         # API service layer
-│   │   ├── components/  # React components
-│   │   ├── pages/       # Page components
-│   │   ├── stores/      # Zustand state management
-│   │   └── types/       # TypeScript type definitions
-│   └── public/          # Static assets
+│   │   ├── api/          # API service layer
+│   │   ├── components/   # React components
+│   │   ├── pages/        # Page components
+│   │   ├── stores/       # Zustand state management
+│   │   └── types/        # TypeScript type definitions
+│   └── tests/e2e/        # Playwright E2E tests
 │
-├── docs/                # Project documentation
-└── docker-compose.yml   # Container orchestration
+├── docs/                 # Organized documentation
+│   ├── getting-started/  # Setup and installation
+│   ├── development/      # Architecture, API, contributing
+│   ├── testing/          # Testing strategies
+│   ├── planning/         # Roadmap, requirements, technical debt
+│   └── implementation/   # Feature implementation guides
+│
+└── docker-compose.yml    # Container orchestration
 ```
 
 ## 📊 Development Status
 
-**Backend**: ✅ Complete (Week 1-3)
+**Backend**: ✅ Complete (331 tests, 76% coverage)
 - Core game logic and rules
-- Database persistence
-- REST API and WebSocket
-- Admin endpoints
-- Comprehensive testing (60 tests)
+- Database persistence with SQLite + Alembic
+- REST API and WebSocket communication
+- Admin endpoints with authentication
+- Round history and replay system
+- Comprehensive testing
 
-**Frontend**: ✅ Phase 4 Complete (80% complete)
+**Frontend**: ✅ Production Ready (253 tests, 26.8% coverage)
 - ✅ Project setup and infrastructure
 - ✅ Type system and state management
 - ✅ API integration layer
-- ✅ Base UI components
-- ✅ Game board and gameplay UI (responsive)
+- ✅ Complete UI component library
+- ✅ Game board and gameplay UI (fully responsive)
 - ✅ Real-time WebSocket communication
-- ✅ Team scoring and trick tracking
-- ✅ Lead suit indicators and last trick display
-- 🚧 History and replay features
-- 🚧 Admin dashboard
+- ✅ Session persistence and recovery
+- ✅ Game history and replay viewer
+- ✅ Admin dashboard
+- ✅ E2E testing with Playwright (13 scenarios, 77% pass rate)
 
 ## 🧪 Testing
 
 **Backend:**
 ```bash
 cd backend
-uv run pytest              # Run all tests (60 tests)
-uv run pytest tests/unit/  # Unit tests only (32 tests)
-uv run pytest tests/integration/  # Integration tests (24 tests)
-uv run pytest tests/e2e/   # E2E tests (4 test classes)
+uv run pytest                    # All tests (331 tests)
+uv run pytest tests/unit/        # Unit tests (32 tests)
+uv run pytest tests/integration/ # Integration tests (24 tests)
+uv run pytest --cov=app          # With coverage report
 ```
 
-**Code Quality:**
+**Frontend:**
 ```bash
-cd backend
-uv run ruff check app/ tests/  # Linting
-uv run black app/ tests/       # Formatting
+cd frontend
+npm test                         # Unit/component tests (253 tests)
+npm run test:coverage            # With coverage report
+npm run test:e2e                 # E2E tests (requires backend running)
+npm run test:e2e:ui              # E2E in interactive mode
 ```
+
+See [Running Tests](./docs/testing/RUNNING_TESTS.md) for more commands.
 
 ## 🎯 Game Rules
 
@@ -133,16 +160,19 @@ Thurup is a trick-taking card game for 4-6 players:
 - Trick-taking with trump and suit following rules
 - Points awarded based on card values and tricks won
 
-See [REQUIREMENTS.md](./docs/REQUIREMENTS.md) for detailed game rules.
+See [Requirements](./docs/planning/REQUIREMENTS.md) for detailed game rules.
 
 ## 🤝 Contributing
 
-1. Review the [ARCHITECTURE.md](./docs/ARCHITECTURE.md) to understand the system design
-2. Check [DEVELOPER_GUIDE.md](./docs/DEVELOPER_GUIDE.md) for setup instructions
-3. Review [PROJECT_LOG.md](./docs/PROJECT_LOG.md) for recent changes
-4. Follow existing code style (enforced by ruff and prettier)
-5. Add tests for new features
-6. Update documentation as needed
+We welcome contributions! Here's how to get started:
+
+1. Review the [Architecture](./docs/development/ARCHITECTURE.md) to understand the system design
+2. Check [Contributing Guide](./docs/development/CONTRIBUTING.md) for guidelines
+3. Follow [Developer Guide](./docs/development/DEVELOPER_GUIDE.md) for setup instructions
+4. Add tests for new features
+5. Update documentation as needed
+
+See [Contributing Guide](./docs/development/CONTRIBUTING.md) for detailed contribution guidelines.
 
 ## 📝 License
 
@@ -156,71 +186,51 @@ Built with modern technologies:
 - [SQLModel](https://sqlmodel.tiangolo.com/) - Database ORM
 - [Zustand](https://zustand-demo.pmnd.rs/) - State management
 - [TailwindCSS](https://tailwindcss.com/) - Styling
+- [Playwright](https://playwright.dev/) - E2E testing
 
 ---
 
-**Last Updated**: 2025-10-14
-**Status**: Active Development
-**Version**: 0.1.0 (Pre-release)
+**Last Updated**: 2025-10-22
+**Status**: Production Ready
+**Version**: 0.2.0
 
 ## 📋 Recent Changes
 
-### Week 5: Session Management & Technical Review (2025-10-14)
+### 2025-10-22: Documentation Reorganization
+- ✅ Restructured all documentation into organized subdirectories
+- ✅ Eliminated duplicate documentation (6 files merged)
+- ✅ Created comprehensive guides: Quickstart, Installation, Contributing
+- ✅ Added quick reference for running tests
+- ✅ Updated navigation with task-based "I want to..." guide
+- ✅ Single source of truth for all documentation topics
 
-**Session Management (Completed)**
-- ✅ Frontend LocalStorage persistence for player sessions (24-hour expiry)
+### Week 7: Critical Bug Fixes (2025-10-15)
+- ✅ Fixed multiplayer hand visibility (WebSocket re-identification)
+- ✅ Fixed dealer rotation to follow official 28 rules
+- ✅ Improved trick card display with actual card images
+- ✅ Enhanced visual spacing and layout
+
+### Week 6: Round History Persistence (2025-10-14)
+- ✅ Implemented comprehensive round history database persistence
+- ✅ Created admin game history browser with round-by-round playback
+- ✅ Fixed player name persistence bug
+- ✅ Added "Start Next Round" button for multi-round gameplay
+- ✅ Enhanced admin panel with short code display
+
+### Week 5: Session Management & Visual Enhancements (2025-10-13)
+- ✅ Frontend LocalStorage persistence for player sessions
 - ✅ Modal-based join flow consistent across all entry points
 - ✅ Page refresh recovery with automatic session restoration
 - ✅ WebSocket short code resolution bug fix (critical)
-- ✅ Race condition prevention in session loading
-
-**Documentation (New)**
-- ✅ Created comprehensive [TECHNICAL_REVIEW.md](./docs/TECHNICAL_REVIEW.md) with:
-  - Architecture analysis and scoring (6.5/10 overall)
-  - 13 critical/major issues identified with solutions
-  - Refactoring priorities (High/Medium/Low)
-  - Scalability roadmap and recommendations
-- ✅ Created [ROADMAP.md](./docs/ROADMAP.md) with:
-  - Q1-Q4 2026 feature milestones
-  - Tournaments, mobile apps, monetization plans
-  - Infrastructure scaling strategy
-
-### Week 4: UX Improvements (2025-10-13)
-
-**Backend**
-- Added current trick and lead suit tracking to game state
-- Implemented last trick persistence for history display
-- Enhanced GameStateDTO with trick-related fields
-- Fixed type safety issues with Pydantic models
-
-**Frontend**
-- Implemented fully responsive GameBoard layout
-- Added team-based scoring display
-- Created lead suit indicator for follow-suit guidance
-- Added last trick display showing previous completed trick
-- Improved trump reveal feedback for bid winner
-- Made all components responsive with Tailwind breakpoints
-- Enhanced player seat components with adaptive sizing
-
-## 🎯 Next Steps
-
-See [TECHNICAL_REVIEW.md](./docs/TECHNICAL_REVIEW.md) for detailed refactoring priorities:
-
-**High Priority** (Q4 2025):
-1. Remove dual WebSocket connection tracking
-2. Extract `resolve_game_id` to shared utility
-3. Add WebSocket message validation
-4. Fix useGame hook dependencies
-5. Add error boundaries to frontend
-
-**Medium Priority** (Q1 2026):
-- Refactor GameSession God class
-- Encapsulate global state in GameServer
-- Optimize broadcast serialization
-- Add proper logging library
-
-See complete details in the technical review document.
+- ✅ Playing card images from Deck of Cards API
+- ✅ Responsive GameBoard layout with percentage-based positioning
+- ✅ Team-based scoring display with bid targets
+- ✅ Lead suit indicator and last trick display
+- ✅ Context-aware trump reveal feedback
 
 ---
 
-For detailed technical documentation, see [backend/CLAUDE.md](./backend/CLAUDE.md) and [frontend/CLAUDE.md](./frontend/CLAUDE.md).
+For detailed technical documentation and development logs, see:
+- [Backend Development Log](./backend/CLAUDE.md)
+- [Frontend Development Log](./frontend/CLAUDE.md)
+- [Documentation Hub](./docs/README.md)
