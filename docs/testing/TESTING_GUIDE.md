@@ -1,683 +1,726 @@
-# Thurup - Manual Testing Guide
+# Thurup - Testing Guide
 
-This guide walks you through testing all features of the Thurup card game application.
+Complete testing documentation for the Thurup card game application, covering both backend and frontend testing strategies.
 
-## Prerequisites
+## Overview
 
-Make sure both servers are running:
+The Thurup project uses a comprehensive testing strategy with three levels of test coverage:
 
-```bash
-# Terminal 1 - Backend
-cd backend
-uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+- **Unit Tests**: Fast, isolated tests for individual functions and classes
+- **Integration Tests**: API and component integration tests with mocked dependencies
+- **End-to-End (E2E) Tests**: Full system tests simulating real user interactions
 
-# Terminal 2 - Frontend
-cd frontend
-npm run dev
-```
+### Test Statistics
 
-**URLs:**
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
+**Backend (pytest)**:
+- 331 tests passing
+- 76% code coverage
+- Test types: Unit (32), Integration (24), E2E (5 classes)
+
+**Frontend (Vitest + Playwright)**:
+- 253 component/unit tests passing
+- 26.8% overall coverage (82.14% for API clients, 100% for UI components)
+- 13 E2E scenarios (10 passing, 77% success rate)
 
 ---
 
-## Automated Testing
+## Quick Start
 
-The project includes both automated unit/integration tests and end-to-end tests to ensure code quality and catch regressions early.
+### Run All Tests
 
-### Backend Tests (pytest)
-
-**Run all backend tests:**
 ```bash
+# Backend
 cd backend
 uv run pytest -v
-```
 
-**Run with coverage:**
-```bash
-uv run pytest --cov=app --cov-report=html
-```
+# Frontend unit/component tests
+cd frontend
+npm test
 
-**Current status:**
-- 331 tests passing
-- 76% code coverage
-- Test files: `backend/tests/`
-
-### Frontend E2E Tests (Playwright)
-
-**Prerequisites:**
-- Backend must be running on port 18081
-- Frontend must be running on port 5173
-
-**Run E2E tests:**
-```bash
+# Frontend E2E tests (requires backend running)
 cd frontend
 npm run test:e2e
 ```
 
-**Run with UI mode (interactive):**
+### Run with Coverage
+
 ```bash
+# Backend
+uv run pytest --cov=app --cov-report=html
+
+# Frontend
+npm run test:coverage
+```
+
+---
+
+## Backend Testing
+
+### Test Structure
+
+```
+backend/tests/
+├── unit/              # Unit tests (isolated, fast, no external dependencies)
+├── integration/       # Integration tests (API tests with TestClient)
+├── e2e/              # End-to-end tests (full system, requires running server)
+├── conftest.py       # Shared pytest fixtures
+└── README.md         # This file
+```
+
+### Unit Tests
+
+**Purpose**: Test individual components in isolation
+
+**Characteristics**:
+- Fast execution (< 1 second total)
+- No external dependencies
+- Mock/stub external services
+- Test single functions/classes
+
+**Files**:
+- `test_bidding.py` - Bidding logic and validation
+- `test_hidden_trump.py` - Hidden trump reveal mechanics
+- `test_rules.py` - Card game rules
+- `test_scoring.py` - Score calculation
+- `test_session.py` - GameSession class
+- `test_phase1_fixes.py` - Phase 1 bug fixes
+- `test_persistence.py` - Database persistence layer
+
+**Run**:
+```bash
+# Run all unit tests
+uv run pytest tests/unit/ -v
+
+# Run specific test file
+uv run pytest tests/unit/test_bidding.py -v
+
+# Run with coverage
+uv run pytest tests/unit/ --cov=app --cov-report=term-missing
+```
+
+### Integration Tests
+
+**Purpose**: Test how components work together via APIs
+
+**Characteristics**:
+- Uses FastAPI TestClient (no server required)
+- Tests REST and WebSocket endpoints
+- In-memory database
+- Tests full API flows
+
+**Files**:
+- `test_api_integration.py` - Complete API integration tests (24 tests)
+  - REST endpoints
+  - WebSocket communication
+  - History endpoints
+  - Admin endpoints
+  - Persistence flows
+  - End-to-end scenarios
+
+**Run**:
+```bash
+# Run all integration tests
+uv run pytest tests/integration/ -v
+
+# Run specific test class
+uv run pytest tests/integration/test_api_integration.py::TestRESTIntegration -v
+```
+
+### End-to-End Tests
+
+**Purpose**: Test the complete system as a user would
+
+**Characteristics**:
+- Requires running server
+- Real HTTP requests
+- Tests full user workflows
+- Simulates production usage
+
+**Files**:
+- `test_complete_flow.py` - Complete game lifecycle tests
+  - Full game flow (create → join → play → history)
+  - Multiple concurrent games
+  - Authentication security
+  - Error handling
+
+**Run**:
+```bash
+# Step 1: Start the server in one terminal
+uv run uvicorn app.main:app --reload --port 8000
+
+# Step 2: Run E2E tests in another terminal
+uv run pytest tests/e2e/ -v -s
+
+# With output visible
+uv run pytest tests/e2e/test_complete_flow.py::TestCompleteGameFlow -v -s
+```
+
+### Writing Backend Tests
+
+**Unit Test Template**:
+```python
+"""
+Unit tests for [component name].
+"""
+
+import pytest
+from app.game.session import GameSession
+
+
+class TestMyComponent:
+    """Test suite for MyComponent."""
+
+    def test_basic_functionality(self):
+        """Test basic functionality."""
+        # Arrange
+        session = GameSession(mode="28", seats=4)
+
+        # Act
+        result = session.some_method()
+
+        # Assert
+        assert result is not None
+```
+
+**Integration Test Template**:
+```python
+"""
+Integration tests for [API endpoint].
+"""
+
+import pytest
+from fastapi.testclient import TestClient
+from app.main import app
+
+
+@pytest.fixture
+def client():
+    return TestClient(app)
+
+
+class TestMyEndpoint:
+    """Integration tests for my endpoint."""
+
+    def test_endpoint_success(self, client):
+        """Test successful endpoint call."""
+        response = client.post("/api/v1/my/endpoint", json={"data": "value"})
+        assert response.status_code == 200
+```
+
+---
+
+## Frontend Testing
+
+### Test Structure
+
+```
+frontend/
+├── src/
+│   ├── components/
+│   │   └── *.test.tsx         # Component tests
+│   ├── api/
+│   │   └── *.test.ts          # API client tests
+│   └── utils/
+│       └── *.test.ts          # Utility tests
+├── tests/
+│   └── e2e/
+│       ├── home-page.spec.ts
+│       └── game-flow.spec.ts
+└── playwright.config.ts
+```
+
+### Unit & Component Tests (Vitest)
+
+**Current Coverage**:
+- ✅ All UI components (Badge, Button, Card, Modal, Select, Spinner) - 100%
+- ✅ API clients (admin, client, game, history) - 82.14%
+- ✅ Session manager utility - 95.23%
+- ✅ Basic game components (PlayerHand, LobbyPanel)
+- ✅ State management stores - 82.12%
+
+**Run**:
+```bash
+# Run all tests
+npm test
+
+# Run in watch mode
+npm run test:watch
+
+# Run with coverage
+npm run test:coverage
+
+# Run specific test
+npm test -- Badge.test.tsx
+```
+
+**Component Test Example**:
+```typescript
+import { describe, it, expect } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { Badge } from './Badge';
+
+describe('Badge', () => {
+  it('renders with correct text', () => {
+    render(<Badge variant="success">Active</Badge>);
+    expect(screen.getByText('Active')).toBeInTheDocument();
+  });
+});
+```
+
+---
+
+## E2E Testing with Playwright
+
+### Setup
+
+**Prerequisites**:
+- Backend must be running on port 18081
+- Frontend must be running on port 5173
+
+**Install Browsers**:
+```bash
+npx playwright install
+```
+
+### Running E2E Tests
+
+```bash
+# Run all E2E tests (headless)
+npm run test:e2e
+
+# Run with UI mode (recommended for development)
+npm run test:e2e:ui
+
+# Run in headed mode (see browser)
+npm run test:e2e:headed
+
+# Run in debug mode
+npm run test:e2e:debug
+
+# Run specific test file
+npx playwright test home-page.spec.ts
+
+# Run specific test by name
+npx playwright test --grep "can create a new game"
+```
+
+### Test Organization
+
+**home-page.spec.ts** - Tests for home page functionality:
+- Page rendering
+- Game creation
+- Join game modal
+- Form validation
+- Game mode selection
+
+**game-flow.spec.ts** - Tests for complete game workflows:
+- Full game creation flow
+- Bot player management
+- Starting games
+- Session persistence on refresh
+- Bidding interactions
+- WebSocket real-time updates
+- Card display
+
+### Writing E2E Tests
+
+**Test Structure**:
+```typescript
+import { test, expect } from '@playwright/test';
+
+test.describe('Feature Name', () => {
+  test.beforeEach(async ({ page }) => {
+    // Setup before each test
+    await page.goto('/');
+  });
+
+  test('should do something', async ({ page }) => {
+    // Arrange
+    await page.goto('/some-page');
+
+    // Act
+    await page.getByRole('button', { name: /Click Me/i }).click();
+
+    // Assert
+    await expect(page.getByText('Success')).toBeVisible();
+  });
+});
+```
+
+### Best Practices
+
+1. **Use accessible selectors**
+   - Prefer `getByRole`, `getByText`, `getByLabel`
+   - Avoid CSS selectors when possible
+
+2. **Wait for elements properly**
+   ```typescript
+   await expect(page.getByText('Loading')).toBeVisible();
+   await expect(page.getByText('Loaded')).toBeVisible({ timeout: 5000 });
+   ```
+
+3. **Use descriptive test names**
+   - Start with "should" or action verb
+   - Describe the expected behavior clearly
+
+4. **Clean up after tests**
+   - Tests should be independent
+   - Don't rely on previous test state
+
+5. **Handle async operations**
+   - Always await promises
+   - Use proper timeout values
+
+### Common Patterns
+
+**Navigation**:
+```typescript
+await page.goto('/');
+await expect(page).toHaveURL(/\/game\/.+/);
+```
+
+**Form Interaction**:
+```typescript
+await page.locator('input[name="playerName"]').fill('TestUser');
+await page.getByRole('button', { name: /Submit/i }).click();
+```
+
+**Waiting for State Changes**:
+```typescript
+// Wait for specific text
+await expect(page.getByText('Success')).toBeVisible({ timeout: 3000 });
+
+// Wait for URL change
+await expect(page).toHaveURL(/\/new-page/);
+```
+
+**Multiple Contexts (Multi-user testing)**:
+```typescript
+test('multiple users can join same game', async ({ browser }) => {
+  const context1 = await browser.newContext();
+  const context2 = await browser.newContext();
+
+  const page1 = await context1.newPage();
+  const page2 = await context2.newPage();
+
+  // Player 1 creates game
+  await page1.goto('/');
+  // ...
+
+  // Player 2 joins game
+  await page2.goto('/');
+  // ...
+
+  await context1.close();
+  await context2.close();
+});
+```
+
+### Debugging E2E Tests
+
+**Visual Debugging**:
+```bash
+# Run with UI mode to see test execution
 npm run test:e2e:ui
 ```
 
-**Run specific test:**
+**Debug Mode**:
 ```bash
-npx playwright test tests/e2e/game-flow.spec.ts
+# Step through tests with debugger
+npm run test:e2e:debug
 ```
 
-**Current status:**
-- 13 test scenarios
-- 10 passing (77% success rate)
-- 3 tests fail intermittently due to bot addition timing
-- Test files: `frontend/tests/e2e/`
+**Headed Mode**:
+```bash
+# See browser during test execution
+npm run test:e2e:headed
+```
 
-**Test scenarios covered:**
-- ✅ Game creation and lobby flow
-- ✅ Bot player addition
-- ✅ Game start with full player count
-- ✅ Session persistence on page refresh
-- ✅ Bidding phase interactions
-- ✅ Card display in hand
-- ✅ Real-time WebSocket updates
-- ⚠️ Rapid bot addition (timing issues)
-- ⚠️ Complete game flow (timing issues)
+**Screenshots and Traces**:
+- Playwright automatically captures screenshots on failure (saved to `test-results/`)
+- Traces on retry (viewable with `npx playwright show-trace`)
 
-**Known issues:**
-- Bot addition tests need longer wait times (currently 2000ms)
-- CI/CD environments may need adjusted timeouts
-- WebSocket reconnection timing can cause flakiness
+**View trace**:
+```bash
+npx playwright show-trace test-results/.../trace.zip
+```
 
-**Test reports:**
-- HTML report: `frontend/playwright-report/index.html`
-- Test results: `frontend/test-results/`
+**Console Logs**:
+```typescript
+// Log page console messages
+page.on('console', msg => console.log('Browser:', msg.text()));
+
+// Log network requests
+page.on('request', request => console.log('Request:', request.url()));
+```
+
+### Current E2E Test Coverage
+
+- ✅ Home page rendering and navigation
+- ✅ Game creation flow
+- ✅ Join game modal
+- ✅ Bot player management
+- ✅ Game start with full lobby
+- ✅ Session persistence on refresh
+- ✅ WebSocket real-time updates
+- ⏳ Full game playthrough (bidding → trump → play → scoring)
+- ⏳ Admin panel functionality
+- ⏳ Game history browsing
+- ⏳ Multiple concurrent users
 
 ---
 
-## Test Flow 1: Create and Play a Game (Solo with Bots)
+## Manual Testing Flows
 
-### 1.1 Create a New Game
+### Test Flow 1: Create and Play a Game (Solo with Bots)
 
-1. **Open the app**: Navigate to http://localhost:5173
-2. **Home Page** should show:
-   - Title: "Thurup"
-   - Subtitle: "The classic 28/56 card game"
-   - Create New Game form
-   - Quick links to History and Admin
-
-3. **Fill in the form:**
+**1.1 Create a New Game**
+1. Open the app: Navigate to http://localhost:5173
+2. Fill in the form:
    - Your Name: Enter "Player 1"
    - Game Mode: Select "28 (4 Players)"
    - Click "Create Game" button
+3. Expected: Success toast, redirect to game page
 
-4. **Expected Result:**
-   - Success toast message: "Game created!"
-   - Redirect to game page: `/game/[game-id]`
+**1.2 Game Lobby**
+1. Lobby shows game ID, mode, player count
+2. Add 3 Bot Players (click "Add Bot Player" 3 times)
+3. Click "Start Game"
+4. Game state changes to "bidding"
 
-### 1.2 Game Lobby
+**1.3 Bidding Phase**
+1. Game board shows 4 player positions
+2. Sidebar shows score board and bidding panel
+3. When your turn: place a bid or pass
+4. Wait for bots to bid automatically
+5. Bidding completes when one player bids and others pass
 
-1. **Lobby Panel** should show:
-   - Game ID (truncated)
-   - Mode: 28
-   - Players: 1 / 4
-   - Your player card with:
-     - Seat number: 0
-     - Your name: "Player 1"
-   - 3 empty seat placeholders
+**1.4 Trump Selection**
+1. If you won the bidding: Trump Panel appears with 4 suit buttons
+2. Choose trump suit
+3. Game moves to "playing" phase
 
-2. **Add 3 Bot Players:**
-   - Click "Add Bot Player" button 3 times
-   - After each click:
-     - Player count should increment
-     - New bot player card appears (Bot 1, Bot 2, Bot 3)
-     - Bot indicator icon shown
+**1.5 Playing Phase**
+1. Your hand appears at bottom with 8 cards
+2. Click a playable card to play it
+3. Bots play automatically in turn
+4. Score Board updates after each trick
+5. Play continues until all cards are played
 
-3. **Start the Game:**
-   - "Start Game" button should be enabled (requires 2+ players)
-   - Click "Start Game"
-   - Game state should change to "bidding"
+**1.6 Game Completion**
+1. Final scores displayed
+2. Winner announced
+3. "Start Next Round" button appears
 
-### 1.3 Bidding Phase
+### Test Flow 2: Multiplayer Game (Multiple Browser Windows)
 
-1. **Game Board** should show:
-   - Central play area
-   - 4 player positions around the circle (bottom=you, top, left, right)
-   - Player names and seat numbers
+1. **Browser Window 1**: Create game as "Alice"
+2. **Copy Game URL** from Share section
+3. **Incognito/Private Window**: Paste URL, join as "Bob"
+4. Repeat for players 3 & 4 or add bots
+5. All players see lobby update in real-time
+6. Play together with synchronized state
 
-2. **Sidebar** shows:
-   - Score Board with all players (0 points each)
-   - Bidding Panel (if it's your turn)
+### Test Flow 3: Game History & Replay
 
-3. **When it's YOUR turn:**
-   - "Your Turn" badge appears (animated pulse)
-   - Bidding Panel shows:
-     - Minimum bid: 16
-     - Quick bid buttons: 16, 20, 24, 28
-     - Custom bid input (16-28)
-     - Pass button (red)
+1. From Home Page, click "Game History"
+2. Filter games: All / Completed / Active
+3. Click on a completed game to view replay
+4. Use timeline controls: play, pause, step, scrub
+5. Watch auto-play with speed adjustment
 
-4. **Place a Bid:**
-   - Click "Bid 20" or enter custom bid
-   - Success toast: "Bid placed"
-   - Wait for bots to bid (they bid automatically)
-   - Bidding continues around the table
+### Test Flow 4: Admin Dashboard
 
-5. **Bidding completes when:**
-   - One player bids and all others pass, OR
-   - Maximum bid (28) is reached
-
-### 1.4 Trump Selection
-
-1. **If you won the bidding:**
-   - Trump Panel appears
-   - Shows 4 suit buttons: ♠ Spades, ♥ Hearts, ♦ Diamonds, ♣ Clubs
-   - Message: "You won the bidding! Choose your trump suit:"
-
-2. **Choose Trump:**
-   - Click any suit button
-   - Trump suit is set
-   - Game moves to "playing" phase
-
-3. **If bot won:**
-   - Trump Panel shows waiting message
-   - Bot automatically chooses trump
-   - You'll see the trump suit in the score board
-
-### 1.5 Playing Phase
-
-1. **Your Hand** appears at bottom:
-   - Shows your 8 cards (for 28 mode)
-   - Cards are displayed in a fan layout
-   - Playable cards have green indicator dot
-
-2. **Play Cards:**
-   - Click a playable card to play it
-   - Card moves to center trick area
-   - Bots play automatically in turn
-   - Trick winner collects cards
-
-3. **Score Updates:**
-   - Score Board updates after each trick
-   - Shows points won by each team
-   - Shows trump suit
-
-4. **Game Progress:**
-   - Play continues until all cards are played
-   - Watch the bots make their moves
-   - Final scores calculated
-
-### 1.6 Game Completion
-
-1. **Game ends:**
-   - Final scores displayed
-   - Winner announced
-   - Game state changes to "completed"
+1. From Home Page, click "Admin Panel"
+2. Login with credentials (default: admin/admin)
+3. View server health metrics (uptime, sessions, connections)
+4. Browse active sessions with connection status
+5. Force save or delete sessions
+6. Trigger cleanup task
+7. Logout when done
 
 ---
 
-## Test Flow 2: Multiplayer Game (Multiple Browser Windows)
-
-### 2.1 Create Game (Player 1)
-
-1. **Browser Window 1**: http://localhost:5173
-2. Create game as "Alice"
-3. **Copy the Game URL** from the Share section in Lobby Panel
-   - Example: `http://localhost:5173/game/abc123...`
-
-### 2.2 Join Game (Player 2)
-
-1. **Open Incognito/Private Window** (or different browser)
-2. **Paste the Game URL** you copied
-3. Fill in name: "Bob"
-4. Click "Join Game" if prompted, or it auto-joins
-
-### 2.3 Join Game (Players 3 & 4)
-
-1. Repeat for 2 more players or add bots
-2. All players should see the lobby update in real-time (WebSocket)
-
-### 2.4 Play Together
-
-1. **Player 1** starts the game
-2. **All browsers update simultaneously** (WebSocket sync)
-3. Each player sees "Your Turn" indicator when it's their turn
-4. Other players see "Waiting..." message
-5. Cards appear only in your hand (hidden from others)
-6. Played cards visible to all in center area
-
----
-
-## Test Flow 3: Game History & Replay
-
-### 3.1 View Game History
-
-1. **From Home Page:** Click "Game History" button
-2. **History Page** shows:
-   - List of all games
-   - Filter buttons: All Games, Completed, Active
-   - Each game card shows:
-     - Game ID
-     - State badge (lobby/active/completed)
-     - Mode badge (28/56)
-     - Player count
-     - Creation date
-     - Player list (first 4 + count)
-     - Replay/Join button
-
-3. **Filter Games:**
-   - Click "Completed" - shows only finished games
-   - Click "Active" - shows ongoing games
-   - Click "All Games" - shows everything
-
-4. **Click on a Game Card:**
-   - If completed: Navigate to Replay page
-   - If active: Navigate to Game page (rejoin)
-
-### 3.2 Watch Game Replay
-
-1. **Click "Replay"** on a completed game
-2. **Replay Page** shows:
-   - Game board showing snapshot state
-   - Score board
-   - Timeline controls at bottom
-   - Snapshot counter: "Snapshot X / Y"
-
-3. **Timeline Controls:**
-   - **⏮️ First Button**: Jump to first snapshot
-   - **⏪ Previous Button**: Go back one snapshot
-   - **▶️/⏸️ Play/Pause Button**: Auto-play through snapshots
-   - **⏩ Next Button**: Go forward one snapshot
-   - **⏭️ Last Button**: Jump to last snapshot
-   - **Speed Button**: Toggle speed (0.5x → 1x → 2x)
-
-4. **Scrub Timeline:**
-   - Drag the slider to any point
-   - Game board updates to show that state
-   - Snapshot info updates (phase, reason, timestamp)
-
-5. **Watch Auto-Play:**
-   - Click Play button
-   - Snapshots advance automatically (2 seconds per snapshot at 1x speed)
-   - Adjust speed to 2x for faster replay
-   - Pause at any time
-
-6. **Snapshot Info Panel:**
-   - Phase: bidding, trump_choice, playing, etc.
-   - Reason: bid_placed, trump_chosen, card_played, etc.
-   - Timestamp: When snapshot was created
-
----
-
-## Test Flow 4: Admin Dashboard
-
-### 4.1 Access Admin Panel
-
-1. **From Home Page:** Click "Admin Panel" button
-2. **Login Screen** appears:
-   - Username field
-   - Password field
-
-3. **Login Credentials:**
-   - Username: `admin` (default, or check your `.env`)
-   - Password: `admin` (default, or check your `.env`)
-
-4. **Click "Login"**
-   - If credentials correct: Dashboard loads
-   - If incorrect: Error message appears
-
-### 4.2 Server Health Metrics
-
-1. **Server Health Section** shows:
-   - Status badge: "healthy" (green) or "degraded" (yellow)
-   - 5 metric cards:
-     - **Uptime**: Server uptime in hours/minutes
-     - **Sessions**: Number of active game sessions in memory
-     - **Connections**: Total WebSocket connections
-     - **Bot Tasks**: Number of running bot tasks
-     - **Database**: Connection status (✓ or ✗)
-
-2. **Metrics auto-refresh** every 10 seconds
-
-### 4.3 Database Statistics
-
-1. **Database Stats Section** shows:
-   - **Total Games**: All games in database
-   - **Total Players**: All player records
-   - **Snapshots**: Total game state snapshots
-   - **DB Size**: Database file size in MB
-
-2. **Trigger Cleanup Button:**
-   - Click "Trigger Cleanup"
-   - Confirmation dialog appears
-   - Confirm to delete old/stale games
-   - Alert shows: "Cleanup completed: X games deleted"
-   - Stats refresh automatically
-
-### 4.4 Active Sessions Management
-
-1. **Active Sessions Section** shows:
-   - Session count in header
-   - List of all active game sessions
-
-2. **Each Session Card** displays:
-   - Game ID (truncated, monospace font)
-   - State badge: lobby/bidding/playing/completed
-   - Mode: 28 or 56
-   - Player count / Seats
-   - Connection count
-   - Connected seats: [0, 1, 2, 3]
-   - "Bot Active" indicator if bot is running
-   - Action buttons: Save, Delete
-
-3. **Save Button:**
-   - Forces immediate save of game state to database
-   - Useful for debugging or manual backups
-   - Success message appears
-
-4. **Delete Button:**
-   - Confirmation dialog: "Are you sure?"
-   - Deletes session from memory and database
-   - Session removed from list
-
-5. **Refresh Button:**
-   - Manually refresh session list
-   - Useful to see changes immediately
-
-### 4.5 Logout
-
-1. Click "Logout" button in header
-2. Redirected to login screen
-3. Credentials cleared
-
----
-
-## Test Flow 5: Edge Cases & Error Handling
-
-### 5.1 Network Disconnection
-
-1. **During active game:**
-   - Disconnect WiFi/network
-   - "Disconnected" badge appears
-   - WebSocket attempts reconnection (up to 5 times)
-   - Reconnect network
-   - Connection restored automatically
-   - Game state syncs from server
-
-### 5.2 Invalid Game ID
-
-1. Navigate to: `http://localhost:5173/game/invalid-id-123`
-2. Loading spinner appears
-3. After timeout: Error state or redirect to home
-
-### 5.3 Full Game (All Seats Taken)
-
-1. Create game with 4 seats
-2. Add 4 players (fill all seats)
-3. Try to join with 5th player using game URL
-4. Should show error: "Game is full"
-
-### 5.4 Invalid Bids
-
-1. During bidding, try to:
-   - Bid below minimum (should be rejected)
-   - Bid below current high bid (should be rejected)
-   - Bid when not your turn (buttons disabled)
-
-### 5.5 Invalid Card Plays
-
-1. During playing phase:
-   - Try to play card when not your turn (button disabled)
-   - Try to play card that doesn't follow suit rules (should be non-playable)
-
----
-
-## Test Flow 6: UI Components & Interactions
-
-### 6.1 Toast Notifications
-
-Watch for toasts appearing in various scenarios:
-- Success toasts (green): Game created, bid placed, trump chosen
-- Error toasts (red): Failed actions, invalid inputs
-- Warning toasts (yellow): Network issues
-- Info toasts (blue): General information
-- Toasts auto-dismiss after 4 seconds
-
-### 6.2 Loading States
-
-Verify loading spinners appear:
-- Creating game
-- Loading game state
-- Loading history
-- Loading replay data
-- Admin dashboard loading
-
-### 6.3 Responsive Design
-
-Test on different screen sizes:
-1. **Desktop (1920x1080)**: Full layout with sidebar
-2. **Tablet (768px)**: Grid layout adjusts
-3. **Mobile (375px)**: Single column, stacked layout
-
-### 6.4 Dark Theme
-
-All pages use dark theme:
-- Background: Dark slate gradient
-- Cards: Semi-transparent dark with glassmorphism
-- Text: White/light gray
-- Accent: Primary color (blue/purple)
-
----
-
-## Test Flow 7: Database Persistence
-
-### 7.1 Game Recovery After Server Restart
-
-1. **Create and start a game** (get to playing phase)
-2. **Stop backend server** (Ctrl+C in backend terminal)
-3. **Restart backend server**
-4. **Refresh frontend** in browser
-5. **Expected**: Game state restored from database
-6. **Check**: All player hands, scores, trump suit preserved
-
-### 7.2 Snapshot History
-
-1. Play through a game
-2. Go to Admin → Database Stats
-3. Note snapshot count increasing
-4. Go to History → View completed game replay
-5. Verify all snapshots captured
-
----
-
-## Test Flow 8: Bot Behavior
-
-### 8.1 Bot Bidding
-
-1. Create game with 3 bots
-2. Start game
-3. Watch bots bid automatically
-4. Bots should:
-   - Bid reasonable values
-   - Pass when appropriate
-   - Make decisions within ~1 second
-
-### 8.2 Bot Card Play
-
-1. During playing phase with bots
-2. Bots should:
-   - Play valid cards automatically
-   - Follow suit rules
-   - Play within ~1-2 seconds
-   - Make strategic decisions
+## CI/CD Integration
+
+### GitHub Actions Example
+
+```yaml
+# Backend tests
+name: Backend Tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install uv
+        run: pip install uv
+      - name: Install dependencies
+        run: uv sync
+      - name: Run unit tests
+        run: uv run pytest tests/unit/ -v
+      - name: Run integration tests
+        run: uv run pytest tests/integration/ -v
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+
+# Frontend E2E tests
+name: Frontend E2E
+on: [push, pull_request]
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Playwright
+        run: npx playwright install --with-deps
+      - name: Start backend
+        run: cd backend && uv run uvicorn app.main:app &
+      - name: Start frontend
+        run: cd frontend && npm run dev &
+      - name: Wait for servers
+        run: sleep 10
+      - name: Run E2E tests
+        run: cd frontend && npm run test:e2e
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+```
 
 ---
 
 ## Troubleshooting
 
-### Frontend Won't Load
+### Backend
 
+**"Server not running" error in E2E tests**
 ```bash
-# Check if Vite is running
-curl http://localhost:5173
-
-# Restart frontend
-cd frontend
-npm run dev
+# Solution: Start server first
+uv run uvicorn app.main:app --reload
 ```
 
-### Backend Won't Respond
-
+**"Database locked" errors**
 ```bash
-# Check if backend is running
-curl http://localhost:8000/health
-
-# Restart backend
-cd backend
-uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+# Solution: Use separate test database or in-memory SQLite
+# Already configured in tests/conftest.py
 ```
 
-### WebSocket Connection Failed
-
-1. Check browser console for errors
-2. Verify backend WebSocket endpoint: `ws://localhost:8000/api/v1/game/ws/{game_id}`
-3. Check CORS settings in backend
-4. Try clearing browser cache
-
-### Database Issues
-
+**Slow tests**
 ```bash
-# Check database file exists
-ls backend/thurup.db
+# Check if E2E tests are running (they're slower)
+# Profile with:
+uv run pytest --durations=10
+```
 
-# View recent logs
-cd backend
-uv run alembic history
+**Import errors**
+```bash
+# Ensure you're in the backend directory
+# Run: uv sync to install dependencies
+```
 
-# Reset database (WARNING: deletes all data)
-rm backend/thurup.db
-cd backend
-uv run alembic upgrade head
+### Frontend
+
+**"Executable doesn't exist" error**
+```bash
+# Install Playwright browsers
+npx playwright install
+```
+
+**Dev server not starting**
+```bash
+# Check that port 5173 is available
+lsof -i :5173
+```
+
+**Tests timing out**
+```typescript
+// Increase timeout in test:
+test('slow operation', async ({ page }) => {
+  test.setTimeout(60000); // 60 seconds
+  // ...
+});
+```
+
+**WebSocket connection issues**
+- Ensure backend is running on expected port (check `baseURL` in config)
+- Check browser console for connection errors
+- Verify CORS settings in backend
+
+### Debugging Tests
+
+**Backend**:
+```bash
+# Run with print statements visible
+uv run pytest -v -s
+
+# Run single test
+uv run pytest tests/unit/test_bidding.py::test_sequential_bidding -v
+
+# Drop into debugger on failure
+uv run pytest --pdb
+
+# Show full traceback
+uv run pytest --tb=long
+
+# Run last failed tests
+uv run pytest --lf
+```
+
+**Frontend**:
+```bash
+# Run in watch mode
+npm run test:watch
+
+# Run specific test
+npm test -- Badge.test.tsx
+
+# Debug E2E in UI mode
+npm run test:e2e:ui
 ```
 
 ---
 
-## API Testing (Optional)
+## Test Coverage Goals
 
-### Using Swagger UI
+### Backend
+- Core game logic: ✅ Comprehensive
+- API endpoints: ✅ All endpoints tested
+- WebSocket: ✅ Connection, messages, broadcasting
+- Persistence: ✅ Save, load, restore
+- History: ✅ Query, replay, stats
+- Admin: ✅ All admin operations
+- **Target**: 80%+ overall coverage
 
-1. Navigate to: http://localhost:8000/docs
-2. Interactive API documentation (Swagger/OpenAPI)
-3. Test endpoints directly:
-   - POST `/api/v1/game/create`
-   - POST `/api/v1/game/{game_id}/join`
-   - GET `/api/v1/history/games`
-   - GET `/api/v1/admin/health` (requires auth)
-
-### Using curl
-
-```bash
-# Health check
-curl http://localhost:8000/health
-
-# Create game
-curl -X POST http://localhost:8000/api/v1/game/create \
-  -H "Content-Type: application/json" \
-  -d '{"mode": "28", "seats": 4}'
-
-# Get game history
-curl http://localhost:8000/api/v1/history/games
-
-# Admin health (with auth)
-curl -u admin:admin http://localhost:8000/api/v1/admin/health
-```
+### Frontend
+- UI Components: ✅ 100% coverage
+- API Clients: ✅ 82% coverage
+- State Management: ✅ 82% coverage
+- Game Components: ⏳ Basic coverage
+- WebSocket Hooks: ⏳ Needs testing
+- Page Components: ⏳ E2E coverage only
+- **Target**: 70%+ overall coverage
 
 ---
 
-## Success Criteria Checklist
+## Resources
 
-Use this checklist to verify all features work:
-
-### Core Gameplay
-- [ ] Create game with player name
-- [ ] Join game from shared URL
-- [ ] Add bot players
-- [ ] Start game (transition to bidding)
-- [ ] Place bids (quick and custom)
-- [ ] Pass on bidding
-- [ ] Choose trump suit
-- [ ] Play cards from hand
-- [ ] See cards in trick area
-- [ ] Score updates correctly
-- [ ] Game completes successfully
-
-### Multiplayer
-- [ ] Multiple players can join
-- [ ] Real-time updates via WebSocket
-- [ ] Turn indicators work correctly
-- [ ] Each player sees only their cards
-- [ ] Disconnection/reconnection works
-
-### History & Replay
-- [ ] View game history list
-- [ ] Filter by state (all/completed/active)
-- [ ] Click to view replay
-- [ ] Timeline controls work (play/pause/step)
-- [ ] Scrub timeline with slider
-- [ ] Speed adjustment works
-- [ ] Snapshot info displays correctly
-
-### Admin Dashboard
-- [ ] Login with credentials
-- [ ] Server health metrics display
-- [ ] Database stats display
-- [ ] Active sessions list
-- [ ] Force save session
-- [ ] Delete session
-- [ ] Trigger cleanup
-- [ ] Auto-refresh every 10s
-- [ ] Logout works
-
-### UI/UX
-- [ ] Toast notifications appear
-- [ ] Loading states display
-- [ ] Error messages helpful
-- [ ] Responsive on mobile/tablet
-- [ ] Dark theme consistent
-- [ ] Icons and badges clear
-- [ ] Buttons disabled when appropriate
-
-### Persistence
-- [ ] Game survives server restart
-- [ ] Snapshots saved correctly
-- [ ] Database grows appropriately
-- [ ] Cleanup deletes old games
+- [Pytest Documentation](https://docs.pytest.org/)
+- [FastAPI Testing Guide](https://fastapi.tiangolo.com/tutorial/testing/)
+- [Vitest Documentation](https://vitest.dev/)
+- [Testing Library](https://testing-library.com/)
+- [Playwright Documentation](https://playwright.dev)
+- [Playwright Best Practices](https://playwright.dev/docs/best-practices)
+- [Test Assertions](https://playwright.dev/docs/test-assertions)
 
 ---
 
-## Known Limitations
+**Last Updated**: 2025-10-22
 
-1. **Browser Compatibility**: Tested on Chrome/Firefox/Safari (latest). IE not supported.
-2. **Network Latency**: WebSocket updates may have slight delay on slow connections.
-3. **Bot AI**: Uses simple random strategy, not advanced AI.
-4. **Mobile**: Touch interactions work but optimized for desktop.
-5. **Max Players**: 28 mode = 4 players, 56 mode = 4 or 6 players.
-
----
-
-## Next Steps After Testing
-
-1. **Report Issues**: If you find bugs, check browser console and backend logs
-2. **Performance**: Monitor with large number of games in history
-3. **Load Testing**: Test with multiple concurrent games
-4. **Production**: Set up proper authentication (not just Basic Auth)
-5. **Deployment**: Configure for production (environment variables, HTTPS, etc.)
-
----
-
-**Happy Testing! 🎮**
-
-For questions or issues, refer to:
-- `docs/ARCHITECTURE.md` - Technical details
-- `docs/PROJECT_LOG.md` - Development history
-- `README.md` - Project overview
+For more information:
+- [API Reference](../development/API_REFERENCE.md) - Backend API documentation
+- [Architecture](../development/ARCHITECTURE.md) - System design
+- [Developer Guide](../development/DEVELOPER_GUIDE.md) - Development setup

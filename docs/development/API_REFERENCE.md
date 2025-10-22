@@ -1,13 +1,60 @@
-# API v1 Package Structure
+# API Reference
+
+Complete API documentation for the Thurup backend.
+
+## Overview
+
+The Thurup API is built with FastAPI and provides both REST endpoints and WebSocket communication for real-time gameplay.
+
+**Base URL**: `http://localhost:18081/api/v1`
+
+**Interactive Documentation**: `http://localhost:18081/docs` (Swagger UI)
+
+---
+
+## Quick Reference
+
+### Core Endpoints
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/game/create` | Create new game |
+| POST | `/game/{id}/join` | Join existing game |
+| POST | `/game/{id}/start` | Start game round |
+| POST | `/game/{id}/bid` | Place bid |
+| POST | `/game/{id}/choose_trump` | Choose trump suit |
+| POST | `/game/{id}/play` | Play card |
+| WS | `/ws/game/{id}` | Real-time game updates |
+
+### History Endpoints
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/history/games` | List all games |
+| GET | `/history/games/{id}` | Get game details |
+| GET | `/history/games/{id}/replay` | Get replay data |
+| GET | `/history/stats` | Get statistics |
+
+### Admin Endpoints (Basic Auth Required)
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/admin/health` | Server health metrics |
+| GET | `/admin/sessions` | List active sessions |
+| POST | `/admin/sessions/{id}/save` | Force save game |
+| DELETE | `/admin/sessions/{id}` | Delete session |
+
+---
+
+## API v1 Package Structure
 
 Refactored from monolithic `v1.py` into a well-organized package with separation of concerns.
 
-## Structure
+### Structure
 
 ```
 app/api/v1/
 ├── __init__.py                # Package initialization, exports main router
-├── README.md                  # This file
 ├── router.py                  # Main router and shared state (sessions, connections, locks)
 ├── broadcast.py               # Broadcasting utilities for state updates
 ├── bot_runner.py              # Bot AI automation logic
@@ -17,6 +64,8 @@ app/api/v1/
 ├── persistence_integration.py # Database save/load/restore integration
 └── history.py                 # Game history and replay endpoints
 ```
+
+---
 
 ## Module Descriptions
 
@@ -166,6 +215,8 @@ from app.api.v1.router import SESSIONS  # Access state in other modules
 - Chronological replay functionality
 - Complete snapshot data retrieval
 
+---
+
 ## Dependencies Between Modules
 
 ```
@@ -179,6 +230,8 @@ router.py (core state)
     ├── persistence_integration.py (uses SESSIONS, sessions_lock, database)
     └── history.py (uses router decorator, database for queries)
 ```
+
+---
 
 ## Shared State Management
 
@@ -200,6 +253,8 @@ Thread-safe access via `ws_connections_lock`
 bot_tasks: Dict[str, asyncio.Task]
 ```
 Ensures only one bot runner per game at a time
+
+---
 
 ## Usage Examples
 
@@ -236,6 +291,8 @@ from app.api.v1.broadcast import broadcast_state
 await broadcast_state(game_id)
 ```
 
+---
+
 ## Testing
 
 All endpoints and functionality are covered by existing tests in `tests/`:
@@ -249,15 +306,24 @@ Run tests:
 uv run pytest tests/ -v
 ```
 
+---
+
 ## Migration Notes
 
 The refactoring maintains 100% backward compatibility:
 - All endpoints unchanged
 - All WebSocket message formats unchanged
 - Shared state behavior identical
-- All 32 tests pass without modification
+- All tests pass without modification
 
 **Changes**:
 - Import in `main.py` remains: `from app.api.v1 import router`
 - Internal structure improved for maintainability
 - Better separation of REST, WebSocket, and bot logic
+
+---
+
+**See Also:**
+- [Architecture Documentation](./ARCHITECTURE.md) - Overall system design
+- [Developer Guide](./DEVELOPER_GUIDE.md) - Development setup and workflow
+- [Testing Guide](../testing/TESTING_GUIDE.md) - Testing strategy and commands

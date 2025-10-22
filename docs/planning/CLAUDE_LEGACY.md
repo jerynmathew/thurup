@@ -1,4 +1,23 @@
-# CLAUDE.md
+# CLAUDE_LEGACY.md
+
+> **⚠️ LEGACY DOCUMENT - OUTDATED**
+>
+> This file contains historical project documentation that has been replaced by the new structured documentation system.
+>
+> **For current, up-to-date information, please see:**
+> - [Getting Started Guide](../getting-started/QUICKSTART.md) - Quick setup and first game
+> - [Installation Guide](../getting-started/INSTALLATION.md) - Detailed setup instructions
+> - [Architecture Documentation](../development/ARCHITECTURE.md) - System design and structure
+> - [Developer Guide](../development/DEVELOPER_GUIDE.md) - Development workflow
+> - [API Reference](../development/API_REFERENCE.md) - Complete API documentation
+> - [Testing Guide](../testing/TESTING_GUIDE.md) - Testing strategies and commands
+> - [Contributing Guide](../development/CONTRIBUTING.md) - How to contribute
+>
+> This file is preserved for historical reference only and may contain outdated information.
+
+---
+
+# CLAUDE.md (Legacy)
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
