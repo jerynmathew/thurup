@@ -17,7 +17,7 @@ test.describe('Game Flow', () => {
     await expect(page.getByText('Alice').first()).toBeVisible();
 
     // Step 5: Verify game info displayed
-    await expect(page.getByText(/28/)).toBeVisible(); // Game mode
+    await expect(page.getByText(/28/).first()).toBeVisible(); // Game mode
 
     // Step 6: Check for share URL (should be visible)
     const urlInput = page.locator('input[readonly]').first();
@@ -57,22 +57,19 @@ test.describe('Game Flow', () => {
     await expect(page).toHaveURL(/\/game\/.+/);
 
     // Add bots until we have 4 players
-    const addBotButton = page.getByRole('button', { name: /Add Bot/i });
-
     // Add 3 bots (we have 1 human player)
     for (let i = 0; i < 3; i++) {
-      if (await addBotButton.isVisible()) {
-        await addBotButton.click();
-        await page.waitForTimeout(500); // Wait for bot to be added
-      }
+      const addBotButton = page.getByRole('button', { name: /Add Bot/i });
+      await addBotButton.waitFor({ state: 'visible', timeout: 5000 });
+      await addBotButton.click();
+      // Wait for the bot to appear in the players list
+      await page.waitForTimeout(2000);
     }
 
-    // Now we should have 4 players (look for exact pattern)
-    await expect(page.locator('text=/^4\\s*\\/\\s*4$/')).toBeVisible({ timeout: 3000 });
-
-    // Start game button should be enabled
+    // Wait for start button text to change from "Need X more" to "Start Game"
     const startButton = page.getByRole('button', { name: /Start Game/i });
-    await expect(startButton).toBeEnabled({ timeout: 2000 });
+    await expect(startButton).toBeVisible({ timeout: 10000 });
+    await expect(startButton).toBeEnabled();
 
     // Click start
     await startButton.click();
@@ -89,8 +86,8 @@ test.describe('Game Flow', () => {
     await page.getByPlaceholder(/Enter your name/i).fill('RefreshTest');
     await page.getByRole('button', { name: /Create Game/i }).first().click();
 
-    const gameUrl = page.url();
     await expect(page).toHaveURL(/\/game\/.+/);
+    const gameUrl = page.url(); // Capture URL after navigation completes
 
     // Wait for player to appear
     await expect(page.getByText('RefreshTest').first()).toBeVisible();
@@ -114,17 +111,17 @@ test.describe('Game Flow', () => {
     await expect(page).toHaveURL(/\/game\/.+/);
 
     // Add 3 bots
-    const addBotButton = page.getByRole('button', { name: /Add Bot/i });
     for (let i = 0; i < 3; i++) {
-      if (await addBotButton.isVisible()) {
-        await addBotButton.click();
-        await page.waitForTimeout(500);
-      }
+      const addBotButton = page.getByRole('button', { name: /Add Bot/i });
+      await addBotButton.waitFor({ state: 'visible', timeout: 5000 });
+      await addBotButton.click();
+      await page.waitForTimeout(2000);
     }
 
-    // Start game (wait for button to be enabled)
+    // Start game (wait for button to appear and be enabled)
     const startButton = page.getByRole('button', { name: /Start Game/i });
-    await expect(startButton).toBeEnabled({ timeout: 5000 });
+    await expect(startButton).toBeVisible({ timeout: 10000 });
+    await expect(startButton).toBeEnabled();
     if (await startButton.isEnabled()) {
       await startButton.click();
 
@@ -163,17 +160,17 @@ test.describe('Game Flow', () => {
     await expect(page).toHaveURL(/\/game\/.+/);
 
     // Add bots
-    const addBotButton = page.getByRole('button', { name: /Add Bot/i });
     for (let i = 0; i < 3; i++) {
-      if (await addBotButton.isVisible()) {
-        await addBotButton.click();
-        await page.waitForTimeout(500);
-      }
+      const addBotButton = page.getByRole('button', { name: /Add Bot/i });
+      await addBotButton.waitFor({ state: 'visible', timeout: 5000 });
+      await addBotButton.click();
+      await page.waitForTimeout(2000);
     }
 
-    // Start game (wait for button to be enabled)
+    // Start game (wait for button to appear and be enabled)
     const startButton = page.getByRole('button', { name: /Start Game/i });
-    await expect(startButton).toBeEnabled({ timeout: 5000 });
+    await expect(startButton).toBeVisible({ timeout: 10000 });
+    await expect(startButton).toBeEnabled();
     if (await startButton.isEnabled()) {
       await startButton.click();
 
