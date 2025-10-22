@@ -11,11 +11,11 @@
 | Priority | Total | Not Started | In Progress | Completed | Blocked |
 |----------|-------|-------------|-------------|-----------|---------|
 | 🔴 High  | 5     | 0           | 0           | 5         | 0       |
-| 🟡 Medium| 5     | 3           | 0           | 2         | 0       |
+| 🟡 Medium| 11    | 9           | 0           | 2         | 0       |
 | 🔵 Low   | 8     | 8           | 0           | 0         | 0       |
-| **Total**| **18**| **11**      | **0**       | **7**     | **0**   |
+| **Total**| **24**| **17**      | **0**       | **7**     | **0**   |
 
-**Estimated Total Effort**: 11-17 days
+**Estimated Total Effort**: 18-28 days
 **Completed Effort**: ~1.6 days (TD-005, TD-007, TD-013, TD-014, TD-015)
 
 ---
@@ -393,6 +393,449 @@ Update frontend to allow difficulty selection when adding bots.
 - Learning bots that adapt to player behavior
 - Tournament mode with consistent difficulty
 - Bot statistics and performance tracking
+
+---
+
+### TD-021: Add E2E Tests for Page Components
+- **Priority**: 🟡 Medium
+- **Status**: 📋 Not Started
+- **Effort**: 3-4 days
+- **Impact**: High - Comprehensive integration coverage for page-level components
+- **Created**: 2025-10-19
+- **Completed**: -
+- **Assigned**: -
+- **Dependencies**: None
+- **Blocked By**: -
+- **Reference**: `frontend/TESTING_ROADMAP.md` (Section 1)
+
+**Description**:
+Page components (GamePage, HomePage, AdminPage, etc.) have 0% test coverage. These are integration points that combine routing, API calls, WebSocket connections, and multiple child components.
+
+**Why E2E Over Unit Tests**:
+- Pages are integration points, not isolated units
+- Heavy reliance on routing, navigation, URL parameters
+- Real WebSocket connections and API interactions
+- User flows span multiple pages
+
+**Implementation Approach**:
+
+**Setup**:
+```bash
+# Playwright is already installed
+npm run test:e2e
+```
+
+**Test Files to Create**:
+1. `tests/e2e/home-page.spec.ts` - Create/join game flows
+2. `tests/e2e/game-page.spec.ts` - Game lobby, bidding, playing, scoring
+3. `tests/e2e/admin-page.spec.ts` - Admin dashboard, session management
+4. `tests/e2e/history-page.spec.ts` - Game history browsing
+5. `tests/e2e/replay-page.spec.ts` - Replay playback
+6. `tests/e2e/navigation.spec.ts` - Routing, 404 handling
+
+**Example Test Pattern**:
+```typescript
+// tests/e2e/game-flow.spec.ts
+import { test, expect } from '@playwright/test';
+
+test('should create and join a game', async ({ page }) => {
+  await page.goto('/');
+  await page.fill('[name="playerName"]', 'Alice');
+  await page.click('text=Create Game');
+  await expect(page).toHaveURL(/\/game\/.+/);
+  await expect(page.locator('text=Alice')).toBeVisible();
+});
+
+test('should handle page refresh in game', async ({ page }) => {
+  await page.goto('/');
+  await page.fill('[name="playerName"]', 'Bob');
+  await page.click('text=Create Game');
+  const gameUrl = page.url();
+  await page.reload();
+  await expect(page.locator('text=Bob')).toBeVisible();
+});
+```
+
+**Files to Test**:
+- `src/pages/GamePage.tsx` (352 lines)
+- `src/pages/HomePage.tsx` (253 lines)
+- `src/pages/AdminPage.tsx` (396 lines)
+- `src/pages/AdminGameHistoryPage.tsx` (322 lines)
+- `src/pages/HistoryPage.tsx` (180 lines)
+- `src/pages/ReplayPage.tsx` (268 lines)
+- `src/pages/NotFoundPage.tsx` (27 lines)
+
+**Testing Checklist**:
+- [ ] Create/join game flows work
+- [ ] Page refresh preserves session
+- [ ] WebSocket reconnection works
+- [ ] All game phases accessible
+- [ ] Admin panel authentication
+- [ ] Game history browsing
+- [ ] Navigation and 404 handling
+
+---
+
+### TD-022: Add Integration Tests for useGame Hook
+- **Priority**: 🟡 Medium
+- **Status**: 📋 Not Started
+- **Effort**: 1-2 days
+- **Impact**: High - WebSocket hooks are critical for real-time gameplay
+- **Created**: 2025-10-19
+- **Completed**: -
+- **Assigned**: -
+- **Dependencies**: None
+- **Blocked By**: -
+- **Reference**: `frontend/TESTING_ROADMAP.md` (Section 2)
+
+**Description**:
+WebSocket hooks (`useGame.ts`, `useGameSocket.tsx`) have 0% test coverage. These hooks manage complex WebSocket behavior including connection, reconnection, message handling, and game actions.
+
+**Why Mock WebSocket**:
+- WebSocket behavior is complex (connect, disconnect, reconnect, errors)
+- Need to test message handling without real backend
+- Can simulate network conditions and edge cases
+
+**Implementation Approach**:
+
+**Setup**:
+```bash
+npm install -D vitest-websocket-mock
+```
+
+**Test Structure**:
+```typescript
+// src/hooks/useGame.test.ts
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { renderHook, waitFor } from '@testing-library/react';
+import WS from 'vitest-websocket-mock';
+import { useGame } from './useGame';
+
+describe('useGame', () => {
+  let server: WS;
+
+  beforeEach(() => {
+    server = new WS('ws://localhost:8000/api/v1/ws/game/test-game');
+  });
+
+  afterEach(() => {
+    WS.clean();
+  });
+
+  it('connects to WebSocket on mount', async () => {
+    const { result } = renderHook(() => useGame({
+      gameId: 'test-game',
+      seat: 0,
+      playerId: 'player-1',
+    }));
+
+    await server.connected;
+    expect(result.current.isConnected).toBe(true);
+  });
+
+  it('sends identify message after connection', async () => {
+    renderHook(() => useGame({
+      gameId: 'test-game',
+      seat: 0,
+      playerId: 'player-1',
+    }));
+
+    await server.connected;
+    const message = await server.nextMessage;
+    expect(JSON.parse(message as string)).toEqual({
+      type: 'identify',
+      payload: { seat: 0, player_id: 'player-1' },
+    });
+  });
+
+  it('reconnects after disconnect with exponential backoff', async () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useGame({
+      gameId: 'test-game',
+      seat: 0,
+      playerId: 'player-1',
+    }));
+
+    await server.connected;
+    server.close();
+
+    vi.advanceTimersByTime(1000);
+    await server.connected;
+    expect(result.current.isConnected).toBe(true);
+
+    vi.useRealTimers();
+  });
+});
+```
+
+**Test Coverage Goals**:
+- ✅ Connection establishment
+- ✅ Re-identification when seat/playerId changes
+- ✅ Message handling (state_snapshot, action_ok, action_failed, error)
+- ✅ Reconnection logic with exponential backoff
+- ✅ Max reconnection attempts
+- ✅ Game actions (placeBid, chooseTrump, playCard, revealTrump)
+- ✅ Disconnect cleanup
+- ✅ Error handling
+
+**Files to Test**:
+- `src/hooks/useGame.ts` (278 lines)
+- `src/hooks/useGameSocket.tsx` (142 lines)
+
+**Testing Checklist**:
+- [ ] WebSocket connects on mount
+- [ ] Identify message sent correctly
+- [ ] State updates handled properly
+- [ ] Reconnection with backoff works
+- [ ] Game actions send correct messages
+- [ ] Error states handled gracefully
+- [ ] Cleanup on unmount
+
+---
+
+### TD-023: Add Integration Tests for useGameSocket Hook
+- **Priority**: 🟡 Medium
+- **Status**: 📋 Not Started
+- **Effort**: 1 day
+- **Impact**: Medium - Covers additional WebSocket functionality
+- **Created**: 2025-10-19
+- **Completed**: -
+- **Assigned**: -
+- **Dependencies**: TD-022 (shares WebSocket mock setup)
+- **Blocked By**: -
+- **Reference**: `frontend/TESTING_ROADMAP.md` (Section 2)
+
+**Description**:
+The `useGameSocket` hook provides additional WebSocket management utilities and needs integration tests similar to `useGame`.
+
+**Implementation**: Follow same pattern as TD-022 with vitest-websocket-mock.
+
+**Files to Test**:
+- `src/hooks/useGameSocket.tsx` (142 lines)
+
+**Testing Checklist**:
+- [ ] Connection lifecycle managed correctly
+- [ ] Message subscriptions work
+- [ ] Cleanup on unmount
+- [ ] Error handling
+
+---
+
+### TD-024: Add Smoke Tests for Entry Points
+- **Priority**: 🟡 Medium
+- **Status**: 📋 Not Started
+- **Effort**: 0.5 days
+- **Impact**: Low-Medium - Ensures app renders without crashing
+- **Created**: 2025-10-19
+- **Completed**: -
+- **Assigned**: -
+- **Dependencies**: None
+- **Blocked By**: -
+- **Reference**: `frontend/TESTING_ROADMAP.md` (Section 5)
+
+**Description**:
+Entry points (`main.tsx`, `App.tsx`, `router.tsx`) are integration glue code that's hard to unit test in isolation. Smoke tests ensure the app renders without crashing.
+
+**Implementation Approach**:
+
+**Test Structure**:
+```typescript
+// src/App.test.tsx
+import { describe, it, expect } from 'vitest';
+import { render } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import App from './App';
+
+describe('App', () => {
+  it('renders without crashing', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(container).toBeInTheDocument();
+  });
+
+  it('renders home page by default', () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/']}>
+        <App />
+      </MemoryRouter>
+    );
+
+    expect(container.querySelector('main')).toBeInTheDocument();
+  });
+});
+```
+
+**Files to Test**:
+- `src/main.tsx` (18 lines)
+- `src/App.tsx` (49 lines)
+- `src/router.tsx` (46 lines)
+
+**Testing Checklist**:
+- [ ] App renders without errors
+- [ ] Home route loads
+- [ ] Router configuration valid
+- [ ] No console errors on mount
+
+---
+
+### TD-025: Add Tests for Complex Game Components
+- **Priority**: 🟡 Medium
+- **Status**: 📋 Not Started
+- **Effort**: 1-2 days
+- **Impact**: Medium - Better coverage for game UI components
+- **Created**: 2025-10-19
+- **Completed**: -
+- **Assigned**: -
+- **Dependencies**: None
+- **Blocked By**: -
+- **Reference**: `frontend/TESTING_ROADMAP.md` (Section 3)
+
+**Description**:
+Complex game components (GameBoard, ScoreBoard, RoundHistory, JoinGameModal) have 0% test coverage. These components have complex rendering logic tightly coupled with game state.
+
+**Strategy**: Test with realistic game states, not isolated unit tests.
+
+**Test Structure**:
+```typescript
+// src/components/game/GameBoard.test.tsx
+import { describe, it, expect } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { GameBoard } from './GameBoard';
+import type { GameState } from '../../types';
+
+describe('GameBoard', () => {
+  it('renders 4 player seats correctly', () => {
+    const gameState: GameState = {
+      game_id: 'test',
+      mode: '28',
+      seats: 4,
+      state: 'lobby',
+      players: [
+        { seat: 0, name: 'Alice', player_id: 'p1', is_bot: false },
+        { seat: 1, name: 'Bob', player_id: 'p2', is_bot: false },
+        { seat: 2, name: 'Charlie', player_id: 'p3', is_bot: false },
+        { seat: 3, name: 'David', player_id: 'p4', is_bot: false },
+      ],
+      dealer: 0,
+      leader: 1,
+    };
+
+    render(<GameBoard gameState={gameState} yourSeat={0} />);
+
+    expect(screen.getByText('Alice')).toBeInTheDocument();
+    expect(screen.getByText('Bob')).toBeInTheDocument();
+    expect(screen.getByText('Charlie')).toBeInTheDocument();
+    expect(screen.getByText('David')).toBeInTheDocument();
+  });
+
+  it('shows dealer badge on correct seat', () => {
+    const gameState: GameState = {
+      // ...
+      dealer: 2,
+    };
+
+    render(<GameBoard gameState={gameState} yourSeat={0} />);
+    const dealerBadge = screen.getByText('Dealer');
+    // Verify it's on seat 2
+  });
+});
+```
+
+**Files to Test**:
+- `src/components/game/GameBoard.tsx` (266 lines)
+- `src/components/game/ScoreBoard.tsx` (249 lines)
+- `src/components/game/RoundHistory.tsx` (205 lines)
+- `src/components/game/JoinGameModal.tsx` (126 lines)
+
+**Test Files to Create**:
+1. `src/components/game/GameBoard.test.tsx` - Player arrangement, trick display, trump indicator
+2. `src/components/game/ScoreBoard.test.tsx` - Score display, team scoring, last trick
+3. `src/components/game/RoundHistory.test.tsx` - Round list, trick details, player names
+4. `src/components/game/JoinGameModal.test.tsx` - Form validation, submission, error states
+
+**Testing Checklist**:
+- [ ] Player seats render correctly
+- [ ] Dealer badge on correct seat
+- [ ] Trick cards display properly
+- [ ] Trump indicator shows/hides
+- [ ] Score calculations correct
+- [ ] Modal validation works
+- [ ] Error states handled
+
+---
+
+### TD-026: Add Tests for Utility Components
+- **Priority**: 🟡 Medium
+- **Status**: 📋 Not Started
+- **Effort**: 0.5 days
+- **Impact**: Low-Medium - Quick wins for coverage improvement
+- **Created**: 2025-10-19
+- **Completed**: -
+- **Assigned**: -
+- **Dependencies**: None
+- **Blocked By**: -
+- **Reference**: `frontend/TESTING_ROADMAP.md` (Section 4)
+
+**Description**:
+Utility components (Banner, ErrorBoundary, Toasts) have 0% test coverage. These are simple components with targeted functionality.
+
+**Test Structure**:
+```typescript
+// src/components/ErrorBoundary.test.tsx
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { ErrorBoundary } from './ErrorBoundary';
+
+const ThrowError = () => {
+  throw new Error('Test error');
+};
+
+describe('ErrorBoundary', () => {
+  it('renders children when no error', () => {
+    render(
+      <ErrorBoundary>
+        <div>Safe content</div>
+      </ErrorBoundary>
+    );
+
+    expect(screen.getByText('Safe content')).toBeInTheDocument();
+  });
+
+  it('catches errors and shows fallback UI', () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(
+      <ErrorBoundary>
+        <ThrowError />
+      </ErrorBoundary>
+    );
+
+    expect(screen.getByText(/Something went wrong/i)).toBeInTheDocument();
+    consoleSpy.mockRestore();
+  });
+});
+```
+
+**Files to Test**:
+- `src/components/Banner.tsx` (7 lines)
+- `src/components/ErrorBoundary.tsx` (158 lines)
+- `src/components/Toasts.tsx` (13 lines)
+
+**Test Files to Create**:
+1. `src/components/Banner.test.tsx` - Simple rendering test
+2. `src/components/ErrorBoundary.test.tsx` - Error catching, fallback UI, reset
+3. `src/components/Toasts.test.tsx` - Toast rendering from store
+
+**Testing Checklist**:
+- [ ] Banner renders correctly
+- [ ] ErrorBoundary catches errors
+- [ ] Fallback UI displays
+- [ ] Toasts render from store
+- [ ] Error logging works
 
 ---
 
