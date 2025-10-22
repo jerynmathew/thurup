@@ -1,0 +1,372 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+Thurup is a real-time multiplayer card game (28/56 variant) with:
+- **Backend**: FastAPI + WebSocket + SQLite (async with aiosqlite)
+- **Frontend**: React 18 + TypeScript + Vite + Zustand
+- **Testing**: 206 backend tests (pytest), frontend tests (vitest + playwright)
+- **Development Status**: Core gameplay complete, active development
+
+## Development Commands
+
+### Backend (Python 3.11+, uv package manager)
+
+```bash
+cd backend
+
+# Dependencies
+uv sync                          # Install all dependencies
+
+# Development
+uv run uvicorn app.main:app --reload  # Start dev server (http://localhost:8000)
+
+# Database
+uv run alembic upgrade head      # Run migrations
+uv run alembic revision --autogenerate -m "description"  # Create migration
+
+# Testing
+uv run pytest                    # All tests (206 tests)
+uv run pytest tests/unit/        # Unit tests only
+uv run pytest tests/integration/ # Integration tests
+uv run pytest tests/e2e/         # E2E tests
+uv run pytest -k test_name       # Run specific test
+uv run pytest --cov=app          # With coverage
+
+# Code Quality
+uv run ruff check app/ tests/    # Linting
+uv run ruff check --fix app/     # Auto-fix issues
+uv run black app/ tests/         # Format code
+```
+
+### Frontend (Node.js 20+)
+
+```bash
+cd frontend
+
+# Dependencies
+npm install                      # Install dependencies
+
+# Development
+npm run dev                      # Start dev server (http://localhost:5173)
+npm run build                    # Production build
+npm run preview                  # Preview production build
+
+# Testing
+npm run test                     # Run vitest unit tests
+npm run test:ui                  # Vitest UI
+npm run test:coverage            # Coverage report
+npm run test:e2e                 # Playwright E2E tests
+npm run test:e2e:ui              # Playwright UI mode
+
+# Type Checking
+npm run type-check               # TypeScript type checking
+```
+
+### Docker
+
+```bash
+docker-compose up --build        # Start both services
+```
+
+## Architecture
+
+### Backend Structure
+
+**Core Components:**
+- `app/main.py` - FastAPI application entry point with lifespan management
+- `app/api/v1/` - REST and WebSocket endpoints
+- `app/game/session.py` - **GameSession** state machine (core game engine)
+- `app/game/rules.py` - Card game rules (trick winning, scoring)
+- `app/db/` - Database models, repositories, persistence
+
+**Key Architectural Patterns:**
+- **State Machine**: GameSession has phases: LOBBY → BIDDING → CHOOSE_TRUMP → PLAY → SCORING
+- **Repository Pattern**: Clean data access layer (GameRepository, PlayerRepository, etc.)
+- **Manager Classes**: Extracted concerns (BiddingManager, TrickManager, HiddenTrumpManager)
+- **WebSocket Broadcasting**: ConnectionManager tracks connections, broadcasts state changes
+- **Async Throughout**: All I/O operations use async/await
+
+**Game Flow:**
+1. Create game → Join players → Start round (deal cards, start bidding)
+2. Bidding phase → Highest bidder chooses trump suit
+3. Playing phase → Trick-taking (follow suit, trump beats other suits)
+4. Scoring phase → Calculate team scores, check if bid made
+5. Start next round or end game
+
+**Important GameSession Fields:**
+- `state` - Current phase (SessionState enum)
+- `hands` - Dict[seat, List[Card]] - Player hands
+- `bids` - BiddingManager - Bid tracking
+- `tricks` - TrickManager - Current/last trick, captured tricks
+- `trump` - Trump suit (or None if hidden)
+- `turn` - Current player seat (0-indexed)
+- `leader` - First player to act each round
+- `current_dealer` - Dealer position (rotates counter-clockwise)
+
+**Dealer Rotation (Important!):**
+- Direction: **Counter-clockwise** (matches official 28 card game rules)
+- Leader calculation: `(current_dealer + 1) % seats` (player to dealer's right)
+- Dealer rotation: `(current_dealer - 1) % seats` after each round
+- Turn advancement: `(turn + 1) % seats` (counter-clockwise)
+- All tests verify this direction - DO NOT change without updating 206 tests
+
+### Frontend Structure
+
+**Core Components:**
+- `src/pages/GamePage.tsx` - Main game interface (352 lines)
+- `src/hooks/useGame.ts` - WebSocket hook with reconnection (278 lines)
+- `src/components/game/GameBoard.tsx` - Circular player layout (266 lines)
+- `src/stores/gameStore.ts` - Zustand state management
+
+**State Management:**
+- **Zustand stores**: gameStore (game state), uiStore (toasts/modals), authStore (admin)
+- **LocalStorage**: Session persistence (24-hour expiry) for page refresh recovery
+- **WebSocket**: Real-time state updates from backend
+
+**Key Features:**
+- **Session Recovery**: Page refresh restores player session from localStorage
+- **WebSocket Re-identification**: Hook re-sends identify message when seat/playerId changes
+- **Responsive Design**: Mobile-first with Tailwind breakpoints
+- **Card Images**: Uses Deck of Cards API (https://deckofcardsapi.com/static/img/)
+
+**Critical Timing Issue:**
+WebSocket must identify AFTER session is restored. See `useGame.ts:101-112` for re-identification effect that fixes multiplayer hand visibility bug.
+
+## Database Schema
+
+**Tables:**
+- `games` - Game metadata (id, mode, seats, state, created_at, etc.)
+- `players` - Players in games (game_id FK, seat, name, is_bot)
+- `game_state_snapshots` - Complete state snapshots for recovery
+- `round_history` - Round-by-round history with tricks and scores
+
+**Cleanup Rules:**
+- Lobby games: 1 hour timeout
+- Active games: 2 hours inactivity
+- Completed games: 24 hours retention
+- Runs every 30 minutes via background task
+
+## Testing Guidelines
+
+### Backend Testing (206 tests, 100% passing)
+
+**Test Organization:**
+- `tests/unit/` - Game logic, rules, AI, managers (32 tests)
+- `tests/integration/` - API, WebSocket, database (24 tests)
+- `tests/e2e/` - Full game flows (4 test classes)
+
+**Important Test Patterns:**
+- Always start with `dealer=0` → `turn=1` (leader to dealer's right)
+- Bidding order: 1 → 2 → 3 → 0 (counter-clockwise)
+- Use `asyncio.Lock` for concurrent test setup
+- Mock database in unit tests (in-memory SQLite)
+
+**When Writing Tests:**
+- Follow existing patterns in `test_bidding.py` and `test_gameplay_bug_repro.py`
+- Verify dealer rotation: seat 0 → 3 → 2 → 1 → 0
+- Test both 28-mode (4 players) and 56-mode (6 players)
+- Include trump reveal scenarios (hidden trump is complex)
+
+### Frontend Testing
+
+**Current Status:**
+- Component tests: Some coverage (Badge, Modal, Select, Spinner, etc.)
+- E2E tests: Playwright setup complete, basic tests exist
+- Hooks: Limited coverage (sessionManager tested)
+
+**Testing Priorities** (See TECHNICAL_DEBT_TODO.md):
+- TD-021: E2E tests for page components (GamePage, HomePage, AdminPage)
+- TD-022: Integration tests for useGame hook (WebSocket mock)
+- TD-025: Complex game components (GameBoard, ScoreBoard, etc.)
+
+## Common Development Tasks
+
+### Adding a New Game Feature
+
+1. **Backend:**
+   - Update `GameSession` state (consider extracting to manager if complex)
+   - Update `GameStateDTO` in `models.py` with new fields
+   - Modify `get_public_state()` to include new data
+   - Update persistence in `persistence.py` (save/load methods)
+   - Add tests in `tests/unit/`
+
+2. **Frontend:**
+   - Update `GameState` type in `types/game.ts`
+   - Add UI component in `components/game/`
+   - Update `GamePage.tsx` to render new component
+   - Test with WebSocket connection
+
+### Debugging WebSocket Issues
+
+**Backend Logs:**
+```python
+logger.info("action_name", game_id=game_id, seat=seat, extra_context=value)
+```
+
+**Frontend Logs:**
+- Check browser console for `[useGame]` prefixed messages
+- Verify `identify` message sent: `{type: 'identify', payload: {seat, player_id}}`
+- Check `gameStore` state in React DevTools
+
+**Common Issues:**
+- Player can't see hand → Check if `identify` message sent with correct seat
+- State not updating → Check WebSocket connection status
+- Wrong player highlighted → Verify `turn` field in gameState
+
+### Database Migrations
+
+```bash
+# Generate migration after model changes
+cd backend
+uv run alembic revision --autogenerate -m "Add new_field to games table"
+
+# Review migration in alembic/versions/
+# Edit if needed (auto-generate isn't perfect)
+
+# Apply migration
+uv run alembic upgrade head
+
+# Rollback if needed
+uv run alembic downgrade -1
+```
+
+## Code Style & Conventions
+
+### Backend (Python)
+
+- **Imports**: Absolute imports only (`from app.game.session import GameSession`)
+- **Naming**: snake_case for functions/variables, PascalCase for classes
+- **Type Hints**: Use Pydantic models for validation, type hints everywhere
+- **Logging**: Structured logging with key-value pairs (structlog)
+- **Async**: All I/O operations must be async
+- **Error Handling**: Use FastAPI HTTPException with proper status codes
+
+### Frontend (TypeScript)
+
+- **Imports**: Named imports, organize by: React → libraries → local
+- **Naming**: camelCase for functions/variables, PascalCase for components
+- **Types**: Full TypeScript coverage, no `any` types
+- **Hooks**: Extract reusable logic into custom hooks
+- **Components**: Functional components with hooks, no class components
+- **Styling**: TailwindCSS utility classes, no inline styles
+
+## Important Implementation Details
+
+### Hidden Trump System
+
+The trump suit can be hidden until revealed by the bid winner. Three modes:
+- `reveal_on_first_play` - Trump shown when bid winner plays first card
+- `reveal_on_first_nonfollow` - Trump shown when bid winner plays trump card
+- `reveal_on_first_trump` - Trump shown immediately when chosen
+
+**Implementation:** `HiddenTrumpManager` class handles all reveal logic. See `app/game/hidden_trump.py`.
+
+### Short Codes
+
+Games have both UUIDs and human-readable short codes (e.g., "clever-newt-96"):
+- Generated on game creation using `generate_short_code()` in `utils/shortcode.py`
+- All API endpoints accept both UUIDs and short codes
+- Resolution handled by `resolve_game_identifier()` in `utils/game_resolution.py`
+- WebSocket endpoint supports both formats
+
+### Bot AI
+
+**Current Implementation:** Simple heuristics in `app/game/ai.py`
+- Random bidding with pass probability
+- Play lowest card that follows suit
+- Trump selection based on suit count
+
+**Future:** Strategy pattern for difficulty levels (see TD-017 in TECHNICAL_DEBT_TODO.md)
+
+### Session Persistence
+
+**Backend:** Games automatically saved to database after each action
+- Snapshots stored in `game_state_snapshots` table
+- Complete state serialization (hands, bids, tricks, points)
+- Recovery on server restart via `load_game_from_db()`
+
+**Frontend:** Player sessions in localStorage (24-hour expiry)
+- Stored on join: `{gameId, seat, playerId, playerName, joinedAt}`
+- Restored on page refresh
+- Cleared on logout or game end
+
+## Known Issues & Technical Debt
+
+See `docs/TECHNICAL_DEBT_TODO.md` for complete list. Key items:
+
+**High Priority (Completed):**
+- ✅ Dual WebSocket tracking removed
+- ✅ Game ID resolution utility extracted
+- ✅ WebSocket message validation added
+- ✅ useGame hook dependencies fixed
+- ✅ Test cases for clockwise direction
+
+**Medium Priority:**
+- TD-005: GameSession refactoring (Phase 4 pending: RoundManager)
+- TD-006: Encapsulate global state in GameServer class
+- TD-017: AI strategy layer for difficulty levels
+- TD-021-026: Frontend testing improvements
+
+**Low Priority:**
+- TD-018: Bot speed adjustments (add delays)
+- TD-019: Sound effects
+- TD-020: Visual animations
+- TD-016: Card serialization optimization
+
+## Security & Admin
+
+**Admin Endpoints:** Protected with HTTP Basic Auth
+- Default credentials: admin / changeme
+- Configure via `ADMIN_USERNAME` and `ADMIN_PASSWORD` environment variables
+- Admin panel at `/admin` (frontend route)
+
+**WebSocket Security:** No authentication (by design for simplicity)
+- Players identified by seat + player_id (UUID)
+- Server validates all actions against game state
+- No client-side game logic trusted
+
+## Deployment
+
+**Environment Variables:**
+- Backend: `DATABASE_URL`, `ADMIN_USERNAME`, `ADMIN_PASSWORD`, `CORS_ORIGINS`
+- Frontend: `VITE_API_BASE` (backend URL)
+
+**Docker Deployment:**
+```bash
+# Edit environment in docker-compose.yml
+docker-compose up -d
+```
+
+**Manual Deployment:**
+- Backend: `uv run uvicorn app.main:app --host 0.0.0.0 --port 8000`
+- Frontend: `npm run build && npm run preview`
+
+## Documentation
+
+**Core Documentation:**
+- `README.md` - Project overview and quick start
+- `docs/ARCHITECTURE.md` - Complete system architecture
+- `docs/TECHNICAL_DEBT_TODO.md` - Refactoring priorities
+- `backend/CLAUDE.md` - Backend development log
+- `frontend/CLAUDE.md` - Frontend development log
+
+**API Documentation:**
+- OpenAPI: http://localhost:8000/docs (when backend running)
+- `docs/API.md` - Endpoint documentation
+
+## Recent Changes (Week 7)
+
+**Critical Bug Fixes:**
+1. Multiplayer hand visibility - Fixed WebSocket re-identification timing
+2. Dealer rotation - Now counter-clockwise per official rules
+3. All 206 backend tests passing
+
+**Key Commits:**
+- e902209: Fix frontend test failures and add missing dependency
+- 5fdf8d2: Add comprehensive integration tests for API modules
+- 546a7fa: Refactor: Encapsulate global state in GameServer (TD-006)
+- 3d53a69: Implement trick view delay with visual layer approach
+- 2966aa3: Add comprehensive tests for low-coverage files (68% → 76% coverage)
