@@ -1,11 +1,7 @@
-/**
- * PlayerHand component - displays the player's cards.
- * Shows cards in a fan layout with hover effects.
- */
-
+import React from 'react';
 import { Card as CardType } from '../../types';
 import { PlayingCard } from './PlayingCard';
-import { Button } from '../ui';
+import { NeonButton } from '../ui';
 
 interface PlayerHandProps {
   cards: CardType[];
@@ -16,14 +12,14 @@ interface PlayerHandProps {
   disabled?: boolean;
 }
 
-export function PlayerHand({
+export const PlayerHand: React.FC<PlayerHandProps> = ({
   cards,
   playableCards = [],
   onCardClick,
   onRevealTrump,
   canRevealTrump = false,
   disabled = false,
-}: PlayerHandProps) {
+}) => {
   if (cards.length === 0) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -32,60 +28,70 @@ export function PlayerHand({
     );
   }
 
+  // Calculate rotation for fan effect
+  const getRotation = (index: number, total: number) => {
+    const spread = 40; // Total spread angle in degrees
+    const start = -spread / 2;
+    const step = spread / (total - 1 || 1);
+    return start + step * index;
+  };
+
+  // Calculate vertical offset for fan arc
+  const getTranslateY = (index: number, total: number) => {
+    const mid = (total - 1) / 2;
+    const dist = Math.abs(index - mid);
+    return dist * 4; // 4px down per step from center
+  };
+
   return (
-    <div className="relative w-full py-4">
-      {/* Reveal Trump Button */}
+    <div className="relative w-full h-48 flex justify-center items-end pb-6 overflow-visible">
+
+      {/* Action Bar (Reveal Trump) */}
       {canRevealTrump && onRevealTrump && (
-        <div className="mb-4 flex justify-center">
-          <Button
-            variant="primary"
+        <div className="absolute bottom-48 z-30 animate-bounce">
+          <NeonButton
+            variant="amber"
+            glow
             onClick={onRevealTrump}
-            className="bg-yellow-600 hover:bg-yellow-700 border-2 border-yellow-500"
+            className="flex items-center gap-2"
           >
-            <span className="flex items-center gap-2">
-              <span className="text-2xl">🎴</span>
-              <span className="font-semibold">Reveal Trump</span>
-            </span>
-          </Button>
+            <span className="text-xl">🎴</span>
+            <span>Reveal Trump</span>
+          </NeonButton>
         </div>
       )}
 
-      {/* Card container with fan layout */}
-      <div className="flex items-end justify-center gap-2">
+      {/* Cards Container */}
+      <div className="flex -space-x-12 hover:-space-x-8 transition-all duration-300 items-end mb-[-20px] hover:mb-0 px-12">
         {cards.map((card, index) => {
           const isPlayable = playableCards.includes(card.id);
           const canInteract = !disabled && isPlayable;
+          const rotation = getRotation(index, cards.length);
+          const translateY = getTranslateY(index, cards.length);
 
           return (
             <div
               key={card.id}
-              className="transition-transform duration-200 hover:-translate-y-4"
+              className={`
+                transform transition-all duration-200 origin-bottom
+                ${canInteract ? 'cursor-pointer hover:-translate-y-12 hover:scale-110 hover:z-20' : 'opacity-70 grayscale cursor-not-allowed'}
+              `}
               style={{
                 zIndex: index,
+                transform: `rotate(${rotation}deg) translateY(${translateY}px)`,
               }}
+              onClick={() => canInteract && onCardClick?.(card)}
             >
               <PlayingCard
                 card={card}
                 isPlayable={canInteract}
-                onClick={() => canInteract && onCardClick?.(card)}
                 disabled={disabled || !isPlayable}
+                className={isPlayable ? 'shadow-[0_0_15px_rgba(6,182,212,0.3)]' : ''}
               />
             </div>
           );
         })}
       </div>
-
-      {/* Card count */}
-      <div className="text-center mt-4">
-        <p className="text-slate-400 text-sm">
-          {cards.length} card{cards.length !== 1 ? 's' : ''}
-          {playableCards.length > 0 && playableCards.length < cards.length && (
-            <span className="ml-2 text-primary-400">
-              ({playableCards.length} playable)
-            </span>
-          )}
-        </p>
-      </div>
     </div>
   );
-}
+};

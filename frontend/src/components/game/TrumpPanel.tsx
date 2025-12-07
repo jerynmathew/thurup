@@ -22,18 +22,18 @@ export function TrumpPanel({ onSelectTrump, disabled = false, isMyTurn }: TrumpP
   const canSelect = isMyTurn && !disabled;
 
   return (
-    <Card padding="md">
-      <h3 className="text-lg font-semibold mb-4">Choose Trump</h3>
+    <div className="space-y-4">
+      <h3 className="text-lg font-bold text-neon-magenta">Choose Trump</h3>
 
       {!isMyTurn && (
-        <p className="text-slate-400 text-sm mb-4">
-          Waiting for bid winner to choose trump...
-        </p>
+        <div className="p-3 bg-white/5 rounded border border-white/10 text-center">
+          <p className="text-slate-400 text-sm animate-pulse">Waiting for bid winner...</p>
+        </div>
       )}
 
       {isMyTurn && (
         <>
-          <p className="text-slate-300 text-sm mb-4">
+          <p className="text-slate-300 text-sm">
             You won the bidding! Choose your trump suit:
           </p>
 
@@ -43,7 +43,12 @@ export function TrumpPanel({ onSelectTrump, disabled = false, isMyTurn }: TrumpP
                 key={suit}
                 onClick={() => onSelectTrump(suit)}
                 disabled={!canSelect}
-                className="flex flex-col items-center justify-center p-4 bg-slate-700/50 hover:bg-slate-600 rounded-lg border-2 border-slate-600 hover:border-primary-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="
+                  flex flex-col items-center justify-center p-4 
+                  bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 
+                  hover:border-neon-magenta hover:shadow-[0_0_15px_rgba(217,70,239,0.3)]
+                  transition-all disabled:opacity-50 disabled:cursor-not-allowed
+                "
               >
                 <span className={`text-5xl mb-2 ${color}`}>{suit}</span>
                 <span className="text-slate-300 text-sm font-medium">{name}</span>
@@ -52,6 +57,6 @@ export function TrumpPanel({ onSelectTrump, disabled = false, isMyTurn }: TrumpP
           </div>
         </>
       )}
-    </Card>
+    </div>
   );
 }

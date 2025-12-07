@@ -27,13 +27,16 @@ export const mockPlayers: PlayerInfo[] = [
 
 export const mockGameState: GameState = {
   game_id: 'test-game-123',
+  short_code: 'test-123',
   mode: '28',
   seats: 4,
   state: 'play',
   players: mockPlayers,
+  dealer: 0,
   leader: 0,
   turn: 0,
   trump: '♠',
+  trump_hidden: false,
   kitty: [],
   hand_sizes: { 0: 5, 1: 5, 2: 5, 3: 5 },
   bids: { 0: 16, 1: -1, 2: 18, 3: -1 },
@@ -43,18 +46,24 @@ export const mockGameState: GameState = {
   points_by_seat: { 0: 0, 1: 0, 2: 0, 3: 0 },
   owner_hand: mockCards,
   connected_seats: [0, 1, 2, 3],
-  current_trick: [],
+  current_trick: {},
+  lead_suit: null,
+  last_trick: undefined,
+  rounds_history: [],
 };
 
 export const mockLobbyGameState: GameState = {
   game_id: 'test-game-lobby',
+  short_code: 'lobby-123',
   mode: '28',
   seats: 4,
   state: 'lobby',
   players: [mockPlayers[0], mockPlayers[1]],
+  dealer: 0,
   leader: 0,
   turn: 0,
   trump: null,
+  trump_hidden: false,
   kitty: [],
   hand_sizes: {},
   bids: {},
@@ -63,6 +72,9 @@ export const mockLobbyGameState: GameState = {
   bid_value: null,
   points_by_seat: {},
   connected_seats: [0, 1],
+  lead_suit: null,
+  last_trick: undefined,
+  rounds_history: [],
 };
 
 export const mockBiddingGameState: GameState = {

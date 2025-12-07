@@ -30,7 +30,7 @@ export function Button({
         'focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed',
         {
           // Variants
-          'bg-primary-500 text-white hover:bg-primary-600 focus:ring-primary-500':
+          'bg-gradient-to-r from-neon-cyan to-blue-600 text-white hover:brightness-110 shadow-lg shadow-cyan-500/20 border-0':
             variant === 'primary',
           'bg-slate-700 text-white hover:bg-slate-600 focus:ring-slate-500':
             variant === 'secondary',

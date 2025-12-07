@@ -49,7 +49,7 @@ export default function HistoryPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
+    <div className="min-h-screen text-white">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8 flex justify-between items-center">
@@ -143,7 +143,7 @@ export default function HistoryPage() {
                       <div className="mt-2 flex gap-2">
                         {game.players.slice(0, 4).map((player, i) => (
                           <span key={i} className="text-sm text-slate-300">
-                            {player}
+                            {player.name}
                             {i < game.players.length - 1 && ','}
                           </span>
                         ))}

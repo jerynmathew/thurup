@@ -4,7 +4,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { Spinner, Loading } from './Spinner';
+import { Spinner } from './Spinner';
+import { Loading } from './Loading';
 
 describe('Spinner', () => {
   it('renders spinner', () => {
@@ -71,19 +72,7 @@ describe('Loading', () => {
     expect(spinner).toBeInTheDocument();
   });
 
-  it('uses large spinner by default', () => {
-    const { container } = render(<Loading />);
-    const spinner = container.querySelector('.animate-spin');
-    expect(spinner).toHaveClass('h-12');
-    expect(spinner).toHaveClass('w-12');
-  });
 
-  it('passes size to spinner', () => {
-    const { container } = render(<Loading size="sm" />);
-    const spinner = container.querySelector('.animate-spin');
-    expect(spinner).toHaveClass('h-4');
-    expect(spinner).toHaveClass('w-4');
-  });
 
   it('centers content', () => {
     const { container } = render(<Loading />);

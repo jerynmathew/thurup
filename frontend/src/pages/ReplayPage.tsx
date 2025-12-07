@@ -102,7 +102,7 @@ export default function ReplayPage() {
 
   if (!replay || replay.snapshots.length === 0) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
+      <div className="min-h-screen text-white">
         <div className="container mx-auto px-4 py-8">
           <Card padding="lg">
             <div className="text-center py-16">
@@ -124,7 +124,7 @@ export default function ReplayPage() {
   const currentGameState: GameState = currentSnapshot.data;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
+    <div className="min-h-screen text-white">
       <div className="container mx-auto px-4 py-4">
         {/* Header */}
         <div className="mb-4 flex justify-between items-center">
