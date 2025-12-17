@@ -3,7 +3,7 @@
  */
 
 import { useState } from 'react';
-import { Button, Card } from '../ui';
+import { NeonButton } from '../ui';
 
 interface BiddingPanelProps {
   minBid: number;
@@ -44,76 +44,78 @@ export function BiddingPanel({
   const canBid = isMyTurn && !disabled;
 
   return (
-    <Card padding="md">
-      <h3 className="text-lg font-semibold mb-4">Bidding</h3>
+    <div className="space-y-4">
+      <h3 className="text-lg font-bold text-neon-amber">Place Your Bid</h3>
 
       {!isMyTurn && (
-        <p className="text-slate-400 text-sm mb-4">Waiting for your turn...</p>
+        <div className="p-3 bg-white/5 rounded border border-white/10 text-center">
+          <p className="text-slate-400 text-sm animate-pulse">Waiting for your turn...</p>
+        </div>
       )}
 
       {isMyTurn && (
         <>
-          <div className="mb-4">
-            <p className="text-slate-300 text-sm mb-2">
+          <div className="bg-white/5 p-3 rounded border border-white/10">
+            <p className="text-slate-300 text-sm mb-1">
               {currentHighBid !== null ? (
-                <>Current bid: <span className="font-bold text-primary-400">{currentHighBid}</span></>
+                <>Current High: <span className="font-bold text-neon-cyan">{currentHighBid}</span></>
               ) : (
-                <>Minimum bid: <span className="font-bold text-primary-400">{minBid}</span></>
+                <>Minimum Bid: <span className="font-bold text-neon-cyan">{minBid}</span></>
               )}
             </p>
-            <p className="text-slate-400 text-xs">
-              You must bid at least {minValidBid}
+            <p className="text-xs text-slate-500">
+              Min valid bid: {minValidBid}
             </p>
           </div>
 
           {/* Quick Bid Buttons */}
-          <div className="grid grid-cols-2 gap-2 mb-4">
+          <div className="grid grid-cols-2 gap-2">
             {quickBids.map((bid) => (
-              <Button
+              <NeonButton
                 key={bid}
-                variant="primary"
+                variant="cyan"
+                className="py-1 text-sm"
                 onClick={() => onBid(bid)}
                 disabled={!canBid}
               >
                 Bid {bid}
-              </Button>
+              </NeonButton>
             ))}
           </div>
 
           {/* Custom Bid */}
-          <div className="mb-4">
-            <div className="flex gap-2">
-              <input
-                type="number"
-                min={minValidBid}
-                max={28}
-                value={customBid}
-                onChange={(e) => setCustomBid(e.target.value)}
-                placeholder={`${minValidBid}-28`}
-                disabled={!canBid}
-                className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50"
-              />
-              <Button
-                variant="primary"
-                onClick={handleCustomBid}
-                disabled={!canBid || !customBid}
-              >
-                Bid
-              </Button>
-            </div>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              min={minValidBid}
+              max={28}
+              value={customBid}
+              onChange={(e) => setCustomBid(e.target.value)}
+              placeholder={`${minValidBid}-28`}
+              disabled={!canBid}
+              className="flex-1 px-3 py-1.5 bg-black/30 border border-white/20 rounded text-white placeholder-slate-500 focus:outline-none focus:border-neon-cyan text-sm"
+            />
+            <NeonButton
+              variant="cyan"
+              className="py-1 px-4 text-sm"
+              onClick={handleCustomBid}
+              disabled={!canBid || !customBid}
+            >
+              Bid
+            </NeonButton>
           </div>
 
           {/* Pass Button */}
-          <Button
+          <NeonButton
             variant="danger"
-            fullWidth
+            className="w-full py-1.5 text-sm bg-red-900/50 hover:bg-red-800/50 border border-red-500/30"
             onClick={onPass}
             disabled={!canBid}
           >
             Pass
-          </Button>
+          </NeonButton>
         </>
       )}
-    </Card>
+    </div>
   );
 }

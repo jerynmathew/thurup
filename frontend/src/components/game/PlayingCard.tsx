@@ -11,6 +11,7 @@ interface PlayingCardProps {
   onClick?: () => void;
   disabled?: boolean;
   size?: 'sm' | 'md' | 'lg';
+  className?: string;
 }
 
 /**
@@ -39,6 +40,7 @@ export function PlayingCard({
   onClick,
   disabled = false,
   size = 'md',
+  className,
 }: PlayingCardProps) {
   const cardCode = getCardImageCode(card);
   const imageUrl = `https://deckofcardsapi.com/static/img/${cardCode}.png`;
@@ -65,7 +67,8 @@ export function PlayingCard({
 
           // Hover effects
           'hover:shadow-xl': !disabled,
-        }
+        },
+        className
       )}
     >
       {/* Card Image */}

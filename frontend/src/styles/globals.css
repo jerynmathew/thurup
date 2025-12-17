@@ -2,7 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  :root {
+    --bg-dark: #0f172a;
+    --glass-panel: rgba(255, 255, 255, 0.03);
+    --glass-border: rgba(255, 255, 255, 0.05);
+  }
+
+  body {
+    @apply bg-dark-950 text-white overflow-hidden;
+    background: radial-gradient(circle at center, #1e1b4b 0%, #020617 100%);
+  }
+}
+
 @layer utilities {
+  .glass {
+    background: var(--glass-panel);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--glass-border);
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+  }
+
   /* Toast animations */
   .animate-slide-in {
     animation: slideIn 0.3s ease-out;

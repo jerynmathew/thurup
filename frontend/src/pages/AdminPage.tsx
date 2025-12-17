@@ -26,7 +26,7 @@ export default function AdminPage() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white flex items-center justify-center">
+      <div className="min-h-screen text-white flex items-center justify-center">
         <div className="max-w-md w-full mx-4">
           <div className="bg-slate-800/50 rounded-lg p-8 backdrop-blur-sm border border-slate-700">
             <h1 className="text-3xl font-bold mb-6 text-center">Admin Login</h1>
@@ -216,7 +216,7 @@ function AdminDashboard({ username, onLogout, onNavigateHome }: AdminDashboardPr
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
+    <div className="min-h-screen text-white">
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8 flex justify-between items-center">
           <div>
@@ -251,11 +251,10 @@ function AdminDashboard({ username, onLogout, onNavigateHome }: AdminDashboardPr
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold">Server Health</h2>
               <span
-                className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  health?.status === 'healthy'
-                    ? 'bg-green-500/20 text-green-300 border border-green-500/50'
-                    : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/50'
-                }`}
+                className={`px-3 py-1 rounded-full text-sm font-medium ${health?.status === 'healthy'
+                  ? 'bg-green-500/20 text-green-300 border border-green-500/50'
+                  : 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/50'
+                  }`}
               >
                 {health?.status || 'Unknown'}
               </span>
@@ -349,13 +348,12 @@ function AdminDashboard({ username, onLogout, onNavigateHome }: AdminDashboardPr
                           {session.short_code || session.game_id.slice(0, 8)}
                         </code>
                         <span
-                          className={`px-2 py-1 rounded text-xs font-medium ${
-                            session.state === 'lobby'
-                              ? 'bg-yellow-500/20 text-yellow-300'
-                              : session.state === 'playing'
+                          className={`px-2 py-1 rounded text-xs font-medium ${session.state === 'lobby'
+                            ? 'bg-yellow-500/20 text-yellow-300'
+                            : session.state === 'playing'
                               ? 'bg-green-500/20 text-green-300'
                               : 'bg-blue-500/20 text-blue-300'
-                          }`}
+                            }`}
                         >
                           {session.state}
                         </span>

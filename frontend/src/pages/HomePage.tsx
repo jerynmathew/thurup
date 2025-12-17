@@ -111,7 +111,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
+    <div className="min-h-screen text-white flex flex-col">
       {/* Join Game Modal */}
       <JoinGameModal
         isOpen={showJoinModal}
@@ -122,11 +122,16 @@ export default function HomePage() {
         error={joinError}
       />
 
-      <div className="container mx-auto px-4 py-16">
-        <div className="max-w-2xl mx-auto text-center">
-          <h1 className="text-6xl font-bold mb-4">Thurup</h1>
-          <p className="text-xl text-slate-300 mb-12">
-            The classic 28/56 card game
+      <div className="container mx-auto px-4 py-16 flex-1 flex flex-col items-center justify-center">
+        <div className="max-w-2xl w-full text-center">
+          <div className="mb-8 flex justify-center">
+            <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-neon-cyan to-neon-magenta flex items-center justify-center font-bold text-4xl shadow-[0_0_30px_rgba(6,182,212,0.4)]">
+              T
+            </div>
+          </div>
+          <h1 className="text-6xl font-bold mb-4 tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400">THURUP</h1>
+          <p className="text-xl text-slate-400 mb-12 tracking-wide uppercase text-xs font-bold">
+            Neon Nights Edition
           </p>
 
           <Card padding="lg">

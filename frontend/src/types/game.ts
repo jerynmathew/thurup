@@ -43,6 +43,7 @@ export interface GameState {
   leader: number; // Player to dealer's right (first to bid/play)
   turn: number;
   trump: Suit | null;
+  trump_hidden?: boolean; // Added optional property
   kitty: Card[];
   hand_sizes: Record<number, number>;
   bids: Record<number, number | null>;

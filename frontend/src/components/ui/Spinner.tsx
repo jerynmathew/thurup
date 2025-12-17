@@ -26,16 +26,4 @@ export function Spinner({ size = 'md', className }: SpinnerProps) {
   );
 }
 
-interface LoadingProps {
-  text?: string;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
-}
 
-export function Loading({ text = 'Loading...', size = 'lg' }: LoadingProps) {
-  return (
-    <div className="flex flex-col items-center justify-center p-8">
-      <Spinner size={size} className="mb-4" />
-      <p className="text-slate-400 text-lg">{text}</p>
-    </div>
-  );
-}
